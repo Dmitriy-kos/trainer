@@ -2,9 +2,9 @@
 // screens.js отвечает за DOM; этот модуль решает, ЧТО показать и КОГДА писать в БД.
 
 import * as store from "../core/store.js";
-import { currentWeek, weekLabel, autoregulationHint, overtrainingAlert } from "../core/logic.js";
+import { autoregulationHint, overtrainingAlert, programForDate, measureTile, pullupDayScheme, restRemaining, formatRest, backupReminder } from "../core/logic.js";
 import { parseSetInput, formatLastSets, schemeTargetReps } from "../core/format.js";
-import { DAY_PLANS, dayForWeekday, weekdayHint, techniqueImage } from "../core/plan.js";
+import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS } from "../core/plan.js";
 import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
 import * as screens from "./screens.js";
@@ -16,12 +16,16 @@ const state = {
   sets: [],
   programStart: DEFAULT_PROGRAM_START,
   session: null,       // текущая открытая силовая сессия (в памяти, синхронно с store)
-  exercises: [],        // DAY_PLANS[session.day], отсортировано по orderIdx
+  exercises: [],        // planForSession(session), отсортировано по orderIdx
   viewIdx: null,          // индекс просматриваемого упражнения при навигации «← назад»; null = обычный режим
   flash: null,           // {icon, text, danger} | null — плитка, показывается один раз
   runSession: null,       // сессия только что записанного бега, пока открыт экран деталей
   historyExpandedId: null, // id сессии, чьи подходы сейчас раскрыты в Истории (одна за раз)
   historyEdit: null,     // {sessionId, exercise} | null — какая строка сейчас редактируется в Истории
+  measureProgram: null,  // номер программы, чей день T ещё доступен для замеров («Замеры» плитка); null = не показывать
+  pullupMax: null,       // {value, date} | null — сохранённый максимум строгих подтягиваний
+  lastBackupDate: null,  // дата последней резервной копии (meta) — плитка-напоминание на «Сегодня»
+  timer: null,           // {startedAt, durationSec} | null — таймер отдыха (ничего не пишет в БД)
 };
 
 function pluralRu(n, one, few, many) {
@@ -52,6 +56,7 @@ function consumeFlash() {
 // ---------- Экран «Сегодня» ----------
 
 function goToday() {
+  stopTimer(false);
   state.session = null;
   screens.showScreen("today");
   renderTodayScreen();
@@ -60,19 +65,36 @@ function goToday() {
 function renderTodayScreen() {
   const weekday = todayWeekday();
   const today = todayStr();
-  const hint = weekdayHint(weekday);
-  const week = currentWeek(state.programStart, today);
-  const todayDay = dayForWeekday(weekday);
+  const { number, week } = programForDate(state.programStart, today);
+  const program = programByNumber(number);
+  const hint = programWeekdayHint(program, weekday);
+  const todayDay = programDayForWeekday(program, weekday);
   const unfinished = unfinishedSession(state.sessions);
 
   let resumeLabel = null;
   if (unfinished) {
-    const total = DAY_PLANS[unfinished.day].length;
+    const plan = planForSession(unfinished);
+    const total = plan ? plan.length : 0;
     const n = Math.min(unfinished.progressIdx + 1, total);
-    resumeLabel = `Продолжить: Силовая ${unfinished.day} от ${unfinished.date} (упражнение ${n}/${total})`;
+    const label = unfinished.day === "T" ? "Замеры" : `Силовая ${unfinished.day}`;
+    resumeLabel = `Продолжить: ${label} от ${unfinished.date} (упражнение ${n}/${total})`;
   }
 
-  screens.renderToday({ hint, weekLabel: weekLabel(week), todayDay, resumeLabel });
+  const mt = measureTile(state.programStart, today, state.sessions);
+  const measureLabel = mt ? "Замеры 📏 — рабочие максимумы месяца" : null;
+  state.measureProgram = mt ? mt.programNumber : null;
+
+  const br = backupReminder(state.lastBackupDate, today, state.sessions.length > 0);
+  const backupLabel = br ? (br.days == null ? "⚠️ Сделай резервную копию истории" : `⚠️ Копию не делал ${br.days} дн.`) : null;
+
+  screens.renderToday({
+    hint,
+    weekLabel: `Месяц ${number} · ${program.weekLabels[week]}`,
+    todayDay,
+    resumeLabel,
+    measureLabel,
+    backupLabel,
+  });
 }
 
 function onResume() {
@@ -93,8 +115,9 @@ function goHistory() {
 
 async function onStartStrength(day) {
   const today = todayStr();
-  const week = currentWeek(state.programStart, today);
-  const session = { date: today, day, week, status: "open", wellbeing: null, note: null, progressIdx: 0 };
+  const { number, week } = programForDate(state.programStart, today);
+  const program = day === "T" && state.measureProgram ? state.measureProgram : number;
+  const session = { date: today, day, week, status: "open", wellbeing: null, note: null, progressIdx: 0, program };
   const id = await store.addSession(session);
   const withId = { ...session, id };
   state.sessions.push(withId);
@@ -104,7 +127,7 @@ async function onStartStrength(day) {
 function openSessionFlow(session) {
   state.session = session;
   state.viewIdx = null;
-  state.exercises = DAY_PLANS[session.day].slice().sort((a, b) => a.orderIdx - b.orderIdx);
+  state.exercises = (planForSession(session) ?? []).slice().sort((a, b) => a.orderIdx - b.orderIdx);
   if (session.progressIdx >= state.exercises.length) {
     // Все 5 упражнений уже отмечены, самочувствие ещё не спросили (сессия
     // осталась open) — типичный «закрыли приложение между последним
@@ -138,12 +161,24 @@ function buildSessionVm() {
     else recordedText = "✓ " + formatLastSets(recorded.filter((s) => !s.painFlag));
   }
 
+  const isPullup = item.exercise.startsWith("Подтягивания");
+  let schemeLine = `${item.scheme} · усилие ${item.targetRpe}/10`;
+  let pullupMaxLabel = null;
+  if (isPullup) {
+    const maxVal = state.pullupMax ? state.pullupMax.value : null;
+    schemeLine = `${pullupDayScheme(state.session.program ?? 1, state.session.week, state.session.day, maxVal)} · усилие ${item.targetRpe}/10`;
+    pullupMaxLabel = state.pullupMax
+      ? `${state.pullupMax.value} (обновлён ${state.pullupMax.date}) · тап — изменить`
+      : "не задан · тап — ввести";
+  }
+
   return {
     stepLabel: `Упражнение ${idx + 1} / ${state.exercises.length}`,
-    pillLabel: `Силовая ${state.session.day} · Неделя ${state.session.week}`,
+    pillLabel: `${state.session.day === "T" ? "Замеры" : `Силовая ${state.session.day}`} · Неделя ${state.session.week}`,
     techniqueImg: techniqueImage(item.exercise),
     exercise: item.exercise,
-    schemeLine: `${item.scheme} · усилие ${item.targetRpe}/10`,
+    schemeLine,
+    pullupMaxLabel,
     note: item.note || "",
     lastSetsText: formatLastSets(last),
     sameDisabled: last.length === 0,
@@ -198,6 +233,21 @@ function onForward() {
   }
 }
 
+async function onPullupMaxTap() {
+  const cur = state.pullupMax ? String(state.pullupMax.value) : "";
+  const raw = prompt("Максимум строгих подтягиваний?", cur);
+  if (raw == null) return;
+  const v = parseInt(raw.trim(), 10);
+  if (!Number.isInteger(v) || v < 0 || v > 50) {
+    screens.showSessionError("Максимум — целое число 0–50.");
+    return;
+  }
+  state.pullupMax = { value: v, date: todayStr() };
+  await store.setMeta("pullupMax", state.pullupMax);
+  screens.showSessionError("");
+  screens.renderSession(buildSessionVm());
+}
+
 async function replaceCurrent(rows) {
   const item = currentItem();
   await store.replaceSets(state.session.id, item.exercise, rows);
@@ -234,6 +284,14 @@ async function onSubmit() {
   if (hint) state.flash = { icon: "💡", text: hint, danger: false };
 
   await logSetsAndAdvance(item.exercise, rows);
+
+  if (state.session.day === "T" && item.exercise.startsWith("Подтягивания") && parsed.length > 0) {
+    const best = Math.max(...parsed.map((p) => p.reps));
+    state.pullupMax = { value: best, date: todayStr() };
+    await store.setMeta("pullupMax", state.pullupMax);
+    state.flash = { icon: "🎯", text: `Максимум подтягиваний обновлён: ${best}`, danger: false };
+  }
+
   afterExerciseAction();
 }
 
@@ -279,12 +337,14 @@ async function onPain() {
 // ---------- Самочувствие ----------
 
 function goWellbeing() {
+  stopTimer(false);
   screens.showScreen("wellbeing");
   screens.renderWellbeing({ flash: consumeFlash() });
 }
 
 async function finishSession(wellbeing) {
-  const updated = { ...state.session, status: "done", wellbeing };
+  const note = screens.getWellbeingNote().trim() || null;
+  const updated = { ...state.session, status: "done", wellbeing, note };
   await store.updateSession(updated);
   state.sessions = state.sessions.map((s) => (s.id === updated.id ? updated : s));
   state.session = null;
@@ -311,8 +371,8 @@ async function onWellbeingSkip() {
 
 async function onStartRun() {
   const today = todayStr();
-  const week = currentWeek(state.programStart, today);
-  const run = { date: today, day: "RUN", week, status: "done", wellbeing: null, note: null, progressIdx: 0 };
+  const { number, week } = programForDate(state.programStart, today);
+  const run = { date: today, day: "RUN", week, status: "done", wellbeing: null, note: null, progressIdx: 0, program: number };
   const id = await store.addSession(run);
   const withId = { ...run, id };
   state.sessions.push(withId);
@@ -342,7 +402,7 @@ function groupSessionSets(session) {
   const sets = state.sets.filter((x) => x.sessionId === session.id);
   if (sets.length === 0) return { noSets: true, lines: [] };
 
-  const plan = DAY_PLANS[session.day];
+  const plan = planForSession(session);
   const planOrder = plan ? plan.slice().sort((a, b) => a.orderIdx - b.orderIdx).map((it) => it.exercise) : [];
   const present = [...new Set(sets.map((x) => x.exercise))];
   const extra = present.filter((ex) => !planOrder.includes(ex));
@@ -360,7 +420,7 @@ function groupSessionSets(session) {
 }
 
 function buildHistoryItemVm(session) {
-  const typeLabel = session.day === "RUN" ? "Бег" : `Силовая ${session.day}`;
+  const typeLabel = session.day === "RUN" ? "Бег" : session.day === "T" ? "Замеры" : `Силовая ${session.day}`;
   const wellbeingLabel = session.wellbeing != null ? `${session.wellbeing}/10` : "—";
   let subLabel = `Неделя ${session.week} · ${wellbeingLabel}`;
   if (session.status === "open") subLabel += " · не завершена";
@@ -369,7 +429,7 @@ function buildHistoryItemVm(session) {
     id: session.id,
     title: `${session.date} · ${typeLabel}`,
     subLabel,
-    note: session.day === "RUN" && session.note ? session.note : null,
+    note: session.note || null,
     expanded: state.historyExpandedId === session.id,
     editExercise: state.historyEdit && state.historyEdit.sessionId === session.id ? state.historyEdit.exercise : null,
     noSets,
@@ -411,7 +471,7 @@ function onHistoryEditCancel() {
 }
 
 function historyTargetRpe(session, exercise) {
-  const plan = DAY_PLANS[session.day];
+  const plan = planForSession(session);
   const item = plan ? plan.find((it) => it.exercise === exercise) : null;
   return item ? item.targetRpe : null;
 }
@@ -440,12 +500,17 @@ async function onHistoryEditSubmit(text) {
 
 // ---------- Бэкап ----------
 
-function onExport() {
+async function onExport() {
   screens.showHistoryError("");
   try {
-    const backup = buildBackup(state.programStart, state.sessions, state.sets);
+    const backup = buildBackup(state.programStart, state.sessions, state.sets, {
+      pullupMax: state.pullupMax ?? null,
+      lastBackupDate: todayStr(),
+    });
     const json = JSON.stringify(backup, null, 2);
     screens.downloadFile(`trainer-backup-${todayStr()}.json`, json, "application/json");
+    await store.setMeta("lastBackupDate", todayStr());
+    state.lastBackupDate = todayStr();
   } catch {
     screens.showHistoryError("Не получилось сохранить копию.");
   }
@@ -486,11 +551,17 @@ async function onImportPick(file) {
     await store.bulkImport({
       sessions: backup.sessions,
       sets: backup.sets,
-      meta: { programStart: backup.meta.programStart },
+      meta: {
+        programStart: backup.meta.programStart,
+        pullupMax: backup.meta.pullupMax,
+        lastBackupDate: backup.meta.lastBackupDate,
+      },
     });
     state.sessions = await store.getAllSessions();
     state.sets = await store.getAllSets();
     state.programStart = backup.meta.programStart;
+    state.pullupMax = backup.meta.pullupMax;
+    state.lastBackupDate = backup.meta.lastBackupDate;
     state.historyExpandedId = null;
     state.historyEdit = null;
     state.flash = { icon: "✅", text: `Восстановлено: ${n} ${pluralRu(n, "сессия", "сессии", "сессий")}`, danger: false };
@@ -500,6 +571,48 @@ async function onImportPick(file) {
   } finally {
     screens.resetFileInput();
   }
+}
+
+// ---------- Таймер отдыха ----------
+// Ничего не пишет в БД — интервал только обновляет текст плитки, отсчёт от
+// метки времени старта (не от тиков), чтобы свёрнутое PWA при возврате
+// показывало честный остаток.
+
+let timerInterval = null;
+let audioCtx = null;
+
+function beep() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.frequency.value = 880; g.gain.value = 0.3;
+    o.start(); o.stop(audioCtx.currentTime + 0.6);
+  } catch { /* звук — best effort */ }
+}
+
+function tickTimer() {
+  if (!state.timer) return;
+  const left = restRemaining(state.timer.startedAt, state.timer.durationSec, Date.now());
+  screens.renderTimer({ text: formatRest(left), done: left === 0 });
+  if (left === 0) stopTimer(true);
+}
+
+function startTimer(durationSec) {
+  state.timer = { startedAt: Date.now(), durationSec };
+  clearInterval(timerInterval);
+  timerInterval = setInterval(tickTimer, 500);
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  tickTimer();
+}
+
+function stopTimer(finished) {
+  clearInterval(timerInterval);
+  timerInterval = null;
+  state.timer = null;
+  if (finished) beep(); // плитка остаётся с 0:00 и подсветкой до следующего действия
+  else screens.renderTimer(null);
 }
 
 // ---------- Демо-режим для скриншотов (без записи в БД) ----------
@@ -567,11 +680,14 @@ function bindEvents() {
   screens.on("btn-history", "click", goHistory);
   screens.on("btn-history-back", "click", goToday);
   screens.on("resume-tile", "click", onResume);
+  screens.on("measure-tile", "click", () => guarded(() => onStartStrength("T")));
+  screens.on("backup-tile", "click", goHistory);
 
   screens.on("history-export", "click", () => guarded(onExport));
   screens.on("history-import", "click", screens.openFilePicker);
   screens.onFilePicked((file) => guarded(() => onImportPick(file)));
 
+  screens.on("session-pullup-max", "click", () => guarded(onPullupMaxTap));
   screens.on("session-submit", "click", () => guarded(onSubmit));
   screens.onInputEnter("session-input", () => guarded(onSubmit));
   screens.on("session-same", "click", () => guarded(onSame));
@@ -579,6 +695,12 @@ function bindEvents() {
   screens.on("session-pain", "click", () => guarded(onPain));
   screens.on("session-back", "click", () => guarded(async () => onBack()));
   screens.on("session-forward", "click", () => guarded(async () => onForward()));
+
+  // Таймер отдыха ничего не пишет в БД — без guarded (иначе тап блокировался
+  // бы, пока идёт запись подхода).
+  screens.on("btn-rest-2", "click", () => startTimer(120));
+  screens.on("btn-rest-3", "click", () => startTimer(180));
+  screens.on("session-timer", "click", () => stopTimer(false));
 
   screens.on("wellbeing-skip", "click", () => guarded(onWellbeingSkip));
   screens.on("done-back", "click", goToday);
@@ -608,6 +730,8 @@ async function init() {
     await store.setMeta("programStart", programStart);
   }
   state.programStart = programStart;
+  state.pullupMax = (await store.getMeta("pullupMax")) ?? null;
+  state.lastBackupDate = (await store.getMeta("lastBackupDate")) ?? null;
   state.sessions = await store.getAllSessions();
   state.sets = await store.getAllSets();
 

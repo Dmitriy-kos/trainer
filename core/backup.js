@@ -1,11 +1,21 @@
-export function buildBackup(programStart, sessions, sets) {
-  return { app: "trainer", version: 1, exportedAt: new Date().toISOString(),
-           meta: { programStart }, sessions, sets };
+export function buildBackup(programStart, sessions, sets, extraMeta = {}, food = []) {
+  // pendingPayload (base64 фото) в файл бэкапа не пишем: файлы лежат в Google
+  // Диске, фото там не место; при восстановлении pending-запись просто ждёт сети снова.
+  const cleanFood = (food || []).map((f) => ({ ...f, pendingPayload: null }));
+  return { app: "trainer", version: 3, exportedAt: new Date().toISOString(),
+           meta: { programStart, pullupMax: null, lastBackupDate: null, ...extraMeta },
+           sessions, sets, food: cleanFood };
 }
 
+// Принимает v1, v2 и v3; возвращает мигрированный v3-объект.
+// v1 — до Шага 5 (без session.program и meta.pullupMax/lastBackupDate),
+// v2 — до модуля питания (без food); старые копии в Google Диске обязаны читаться всегда.
 export function validateBackup(obj) {
-  const ok = obj && obj.app === "trainer" && obj.version === 1 &&
+  const ok = obj && obj.app === "trainer" && (obj.version === 1 || obj.version === 2 || obj.version === 3) &&
     Array.isArray(obj.sessions) && Array.isArray(obj.sets) && obj.meta && obj.meta.programStart;
-  if (!ok) throw new Error("Это не файл резервной копии тренера (ожидаю trainer v1).");
-  return obj;
+  if (!ok) throw new Error("Это не файл резервной копии тренера (ожидаю trainer v1–v3).");
+  const sessions = obj.sessions.map((s) => (s.program == null ? { ...s, program: 1 } : s));
+  const meta = { pullupMax: null, lastBackupDate: null, ...obj.meta };
+  const food = Array.isArray(obj.food) ? obj.food : [];
+  return { ...obj, version: 3, sessions, meta, food };
 }

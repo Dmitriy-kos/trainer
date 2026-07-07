@@ -57,6 +57,10 @@ body {
 
 .error { color: #FF3B30; font-size: 13px; font-weight: 600; margin: 0 4px 12px; }
 
+.card.timer { text-align: center; }
+.timer-digits { font-size: 56px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.card.timer.done { background: #0A84FF; color: #fff; }
+
 p { color: #8E8E93; font-size: 15px; line-height: 1.4; }
 
 /* История */

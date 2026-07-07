@@ -20,6 +20,8 @@
     </div>
 
     <button type="button" class="card accent card-btn" id="resume-tile" hidden></button>
+    <button type="button" class="card accent card-btn" id="measure-tile" hidden>Замеры 📏 — рабочие максимумы месяца</button>
+    <button type="button" class="card card-btn" id="backup-tile" hidden></button>
 
     <div class="grid grid2">
       <button type="button" class="btn" id="btn-day-a">Силовая A</button>
@@ -69,6 +71,11 @@
       <div class="v" id="session-last-value"></div>
     </div>
 
+    <button type="button" class="card mini card-btn" id="session-pullup-max" hidden>
+      <div class="l">Максимум подтягиваний</div>
+      <div class="v" id="session-pullup-max-value"></div>
+    </button>
+
     <div class="card mini" id="session-recorded" hidden>
       <div class="l">Записано</div>
       <div class="v" id="session-recorded-value"></div>
@@ -79,6 +86,15 @@
       <button type="button" class="btn btn-accent" id="session-submit">Записать</button>
     </div>
     <div class="error" id="session-error" hidden></div>
+
+    <button type="button" class="card card-btn timer" id="session-timer" hidden>
+      <div class="l">Отдых</div>
+      <div class="timer-digits" id="session-timer-value"></div>
+    </button>
+    <div class="grid grid2">
+      <button type="button" class="btn" id="btn-rest-2">Отдых 2:00</button>
+      <button type="button" class="btn" id="btn-rest-3">Отдых 3:00</button>
+    </div>
 
     <div class="grid grid3">
       <button type="button" class="btn btn-accent" id="session-same">Так же ✅</button>
@@ -101,6 +117,9 @@
 
     <div class="card flash" id="wellbeing-flash" hidden></div>
 
+    <div class="input-row">
+      <input type="text" id="wellbeing-note" placeholder="Заметка (необязательно)">
+    </div>
     <div class="grid grid5" id="wellbeing-grid"></div>
     <button type="button" class="btn btn-wide" id="wellbeing-skip">Пропустить</button>
   </section>

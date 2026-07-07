@@ -3,7 +3,7 @@
 // Без юнит-тестов (нет IndexedDB в Node) — проверяется в браузере.
 
 const DB_NAME = "trainer";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let db = null;
 
@@ -41,6 +41,8 @@ export function openDb() {
         d.createObjectStore("sets", { keyPath: "id", autoIncrement: true });
       if (!d.objectStoreNames.contains("meta"))
         d.createObjectStore("meta", { keyPath: "key" });
+      if (!d.objectStoreNames.contains("food"))
+        d.createObjectStore("food", { keyPath: "id", autoIncrement: true });
     };
     req.onsuccess = () => { db = req.result; resolve(); };
     req.onerror = () => reject(req.error);
@@ -77,20 +79,22 @@ export function setMeta(key, value) {
 }
 
 export async function clearAll() {
-  const t = requireDb().transaction(["sessions", "sets", "meta"], "readwrite");
+  const t = requireDb().transaction(["sessions", "sets", "meta", "food"], "readwrite");
   t.objectStore("sessions").clear();
   t.objectStore("sets").clear();
   t.objectStore("meta").clear();
+  t.objectStore("food").clear();
   await txDone(t);
 }
 
 // Восстановление из бэкапа (backup.js): пишет записи КАК ЕСТЬ, с их id —
 // put(), не add(), иначе автонумерация порвёт связи sessionId в sets.
-export async function bulkImport({ sessions, sets, meta }) {
-  const t = requireDb().transaction(["sessions", "sets", "meta"], "readwrite");
+export async function bulkImport({ sessions, sets, meta, food }) {
+  const t = requireDb().transaction(["sessions", "sets", "meta", "food"], "readwrite");
   for (const s of sessions || []) t.objectStore("sessions").put(s);
   for (const x of sets || []) t.objectStore("sets").put(x);
   for (const [key, value] of Object.entries(meta || {})) t.objectStore("meta").put({ key, value });
+  for (const f of food || []) t.objectStore("food").put(f);
   await txDone(t);
 }
 
@@ -112,4 +116,22 @@ export async function replaceSets(sessionId, exercise, rows) {
   });
   for (const r of rows) os.add(r);
   await txDone(t);
+}
+
+// ---------- Еда (модуль «Питание», дизайн_питание_фото_еды.md) ----------
+
+export function addFood(entry) {
+  return wrap(requireDb().transaction("food", "readwrite").objectStore("food").add(entry));
+}
+
+export function updateFood(entry) {
+  return wrap(requireDb().transaction("food", "readwrite").objectStore("food").put(entry));
+}
+
+export function deleteFood(id) {
+  return wrap(requireDb().transaction("food", "readwrite").objectStore("food").delete(id));
+}
+
+export function getAllFood() {
+  return wrap(requireDb().transaction("food", "readonly").objectStore("food").getAll());
 }

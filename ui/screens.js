@@ -42,7 +42,7 @@ function renderFlash(el, flash) {
 
 // ---------- Сегодня ----------
 
-export function renderToday({ hint, weekLabel, todayDay, resumeLabel }) {
+export function renderToday({ hint, weekLabel, todayDay, resumeLabel, measureLabel, backupLabel }) {
   $("today-title").textContent = hint;
   $("today-week").textContent = weekLabel;
 
@@ -54,6 +54,14 @@ export function renderToday({ hint, weekLabel, todayDay, resumeLabel }) {
     resumeTile.hidden = true;
     resumeTile.textContent = "";
   }
+
+  const measure = $("measure-tile");
+  measure.hidden = !measureLabel;
+  if (measureLabel) measure.textContent = measureLabel;
+
+  const backup = $("backup-tile");
+  backup.hidden = !backupLabel;
+  if (backupLabel) backup.textContent = backupLabel;
 
   for (const day of ["A", "B", "C"]) {
     $(`btn-day-${day.toLowerCase()}`).classList.toggle("btn-accent", todayDay === day);
@@ -243,6 +251,10 @@ export function renderSession(vm) {
 
   $("session-last-value").textContent = vm.lastSetsText;
 
+  const pm = $("session-pullup-max");
+  pm.hidden = vm.pullupMaxLabel == null;
+  if (vm.pullupMaxLabel != null) $("session-pullup-max-value").textContent = vm.pullupMaxLabel;
+
   $("session-input").value = "";
   showSessionError("");
 
@@ -256,10 +268,22 @@ export function renderSession(vm) {
     recWrap.hidden = true;
   }
   $("session-back").disabled = !vm.canBack;
+  // Когда «вперёд →» скрыта (обычный режим), «← назад» растягивается на
+  // всю строку грида — иначе .grid2 держит вторую колонку пустой, и кнопка
+  // занимает только половину ширины.
+  $("session-back").style.gridColumn = vm.isReview ? "" : "1 / -1";
   $("session-forward").hidden = !vm.isReview;
   $("session-same").hidden = !!vm.isReview;
 
   renderFlash($("session-flash"), vm.flash);
+}
+
+export function renderTimer(state) {
+  const tile = $("session-timer");
+  if (!state) { tile.hidden = true; tile.classList.remove("done"); return; }
+  tile.hidden = false;
+  tile.classList.toggle("done", state.done);
+  $("session-timer-value").textContent = state.text;
 }
 
 export function showSessionError(msg) {
@@ -288,7 +312,12 @@ export function initWellbeingGrid(onPick) {
 }
 
 export function renderWellbeing({ flash }) {
+  $("wellbeing-note").value = "";
   renderFlash($("wellbeing-flash"), flash);
+}
+
+export function getWellbeingNote() {
+  return $("wellbeing-note").value;
 }
 
 // ---------- Сессия закрыта (предупреждение о перетрене) ----------
