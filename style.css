@@ -1,0 +1,68 @@
+/* Токены — строго по макеты/4_bento_ios.html (утверждённый макет). */
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+
+/* Защита: автор-правило с display (например .card-btn) иначе перебивает
+   юзер-агентское [hidden]{display:none} — порядок cascade решает происхождение
+   раньше специфичности, так что author-normal побеждает UA-normal всегда. */
+[hidden] { display: none !important; }
+
+html, body { background: #EFEFF4; min-height: 100vh; }
+body {
+  font-family: -apple-system, system-ui, 'Helvetica Neue', Arial, sans-serif;
+  color: #0B0B0F;
+}
+
+.wrap { max-width: 480px; margin: 0 auto; padding: 20px 16px 40px; }
+
+.hd { display: flex; justify-content: space-between; align-items: center; margin: 6px 4px 16px; }
+.step { font-size: 13px; font-weight: 600; color: #8E8E93; }
+.pill { font-size: 13px; font-weight: 600; color: #0A84FF; background: #E5F0FF; padding: 6px 12px; border-radius: 100px; }
+
+.card { background: #fff; border-radius: 22px; padding: 20px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0, 0, 0, .04); }
+.card.big h1 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; margin-bottom: 6px; }
+.card.big .s { font-size: 15px; color: #8E8E93; font-weight: 600; }
+.card.accent { background: #0A84FF; color: #fff; }
+.card.accent .s { color: #cfe4ff; }
+
+.card-btn { border: 0; font: inherit; text-align: left; width: 100%; cursor: pointer; color: inherit; }
+
+.note { font-size: 13px; color: #8E8E93; margin-top: 8px; line-height: 1.35; }
+
+.mini .l { font-size: 12px; color: #8E8E93; font-weight: 600; margin-bottom: 6px; }
+.mini .v { font-size: 19px; font-weight: 800; letter-spacing: -.01em; }
+
+.card.technique { padding: 0; overflow: hidden; }
+.card.technique img { width: 100%; display: block; }
+
+.flash { padding: 14px 18px; color: #8E8E93; font-size: 14px; line-height: 1.4; }
+.flash.danger { color: #FF3B30; font-weight: 600; }
+
+.grid { display: grid; gap: 12px; margin-bottom: 12px; }
+.grid2 { grid-template-columns: 1fr 1fr; }
+.grid3 { grid-template-columns: 1fr 1fr 1fr; }
+.grid5 { grid-template-columns: repeat(5, 1fr); }
+
+.btn { border: 0; border-radius: 18px; padding: 16px 6px; font-size: 15px; font-weight: 700; font-family: inherit; background: #fff; color: #0B0B0F; box-shadow: 0 1px 2px rgba(0, 0, 0, .04); cursor: pointer; }
+.btn-accent { background: #0A84FF; color: #fff; }
+.btn-danger { background: #fff; color: #FF3B30; }
+.btn-wide { width: 100%; margin-bottom: 12px; }
+.btn:disabled { opacity: .35; pointer-events: none; }
+.grid3 .btn { font-size: 13px; padding: 14px 2px; }
+.grid5 .btn { padding: 14px 0; }
+
+.input-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.input-row input { flex: 1; min-width: 0; border: 0; border-radius: 14px; padding: 14px 16px; font-size: 16px; font-family: inherit; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .04); }
+.input-row input::placeholder { color: #8E8E93; }
+
+.error { color: #FF3B30; font-size: 13px; font-weight: 600; margin: 0 4px 12px; }
+
+p { color: #8E8E93; font-size: 15px; line-height: 1.4; }
+
+/* История */
+.history-title { font-size: 16px; font-weight: 800; letter-spacing: -.01em; margin-bottom: 4px; }
+.history-sub { font-size: 13px; color: #8E8E93; font-weight: 600; }
+.history-details { margin-top: 14px; padding-top: 14px; border-top: 1px solid #EFEFF4; }
+.history-line { font-size: 14px; margin-bottom: 6px; }
+.history-line:last-child { margin-bottom: 0; }
+.history-line.pain { color: #FF3B30; font-weight: 600; }

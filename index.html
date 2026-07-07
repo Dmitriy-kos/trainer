@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#EFEFF4">
+<title>Тренер</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Экран: Сегодня -->
+  <section id="screen-today">
+    <div class="card big">
+      <h1 id="today-title"></h1>
+      <div class="s" id="today-week"></div>
+    </div>
+
+    <button type="button" class="card accent card-btn" id="resume-tile" hidden></button>
+
+    <div class="grid grid2">
+      <button type="button" class="btn" id="btn-day-a">Силовая A</button>
+      <button type="button" class="btn" id="btn-day-b">Силовая B</button>
+      <button type="button" class="btn" id="btn-day-c">Силовая C</button>
+      <button type="button" class="btn" id="btn-run">Бег 🏃</button>
+    </div>
+    <button type="button" class="btn btn-wide" id="btn-history">История</button>
+  </section>
+
+  <!-- Экран: История -->
+  <section id="screen-history" hidden>
+    <div class="hd"><span class="step">История</span></div>
+
+    <div class="card flash" id="history-flash" hidden></div>
+
+    <div id="history-list"></div>
+
+    <div class="grid grid2">
+      <button type="button" class="btn" id="history-export">Сохранить копию 📤</button>
+      <button type="button" class="btn" id="history-import">Восстановить из копии 📥</button>
+    </div>
+    <input type="file" id="history-file-input" accept="application/json,.json" hidden>
+    <div class="error" id="history-error" hidden></div>
+
+    <button type="button" class="btn btn-wide" id="btn-history-back">← Сегодня</button>
+  </section>
+
+  <!-- Экран: Сессия -->
+  <section id="screen-session" hidden>
+    <div class="hd"><span class="step" id="session-step"></span><span class="pill" id="session-pill"></span></div>
+
+    <div class="card flash" id="session-flash" hidden></div>
+
+    <div class="card technique" id="session-technique" hidden>
+      <img id="session-technique-img" alt="">
+    </div>
+
+    <div class="card big">
+      <h1 id="session-exercise"></h1>
+      <div class="s" id="session-scheme"></div>
+      <div class="note" id="session-note" hidden></div>
+    </div>
+
+    <div class="card mini" id="session-last">
+      <div class="l">Прошлый раз</div>
+      <div class="v" id="session-last-value"></div>
+    </div>
+
+    <div class="input-row">
+      <input type="text" inputmode="text" id="session-input" placeholder="напр. 50x5,5,5">
+      <button type="button" class="btn btn-accent" id="session-submit">Записать</button>
+    </div>
+    <div class="error" id="session-error" hidden></div>
+
+    <div class="grid grid3">
+      <button type="button" class="btn btn-accent" id="session-same">Так же ✅</button>
+      <button type="button" class="btn" id="session-skip">Пропуск ⏭</button>
+      <button type="button" class="btn btn-danger" id="session-pain">Больно 🚑</button>
+    </div>
+  </section>
+
+  <!-- Экран: Самочувствие -->
+  <section id="screen-wellbeing" hidden>
+    <div class="card big">
+      <h1>Сессия закрыта</h1>
+      <div class="s">Самочувствие?</div>
+    </div>
+
+    <div class="card flash" id="wellbeing-flash" hidden></div>
+
+    <div class="grid grid5" id="wellbeing-grid"></div>
+    <button type="button" class="btn btn-wide" id="wellbeing-skip">Пропустить</button>
+  </section>
+
+  <!-- Экран: сессия зафиксирована (плюс предупреждение о перетрене, если есть) -->
+  <section id="screen-done" hidden>
+    <div class="card big"><h1>Отдыхай 💪</h1></div>
+    <div class="card flash" id="done-alert" hidden></div>
+    <button type="button" class="btn btn-wide" id="done-back">← Сегодня</button>
+  </section>
+
+  <!-- Экран: Бег -->
+  <section id="screen-run" hidden>
+    <div class="card big"><h1>Пробежка записана 🏃</h1></div>
+    <div class="input-row">
+      <input type="text" id="run-input" placeholder="напр. 5 км, 30 мин">
+    </div>
+    <button type="button" class="btn btn-wide btn-accent" id="run-done">Готово</button>
+  </section>
+
+</div>
+<script type="module" src="ui/app.js"></script>
+<script>
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+</script>
+</body>
+</html>
