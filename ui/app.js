@@ -22,6 +22,14 @@ const state = {
   historyExpandedId: null, // id сессии, чьи подходы сейчас раскрыты в Истории (одна за раз)
 };
 
+function pluralRu(n, one, few, many) {
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return many;
+  if (b === 1) return one;
+  if (b >= 2 && b <= 4) return few;
+  return many;
+}
+
 function todayStr() {
   // ЛОКАЛЬНАЯ дата — не toISOString() (тот даёт UTC и после полуночи съедет на вчера).
   const d = new Date();
@@ -361,7 +369,7 @@ async function onImportPick(file) {
     state.sets = await store.getAllSets();
     state.programStart = backup.meta.programStart;
     state.historyExpandedId = null;
-    state.flash = { icon: "✅", text: `Восстановлено: ${n} сессий`, danger: false };
+    state.flash = { icon: "✅", text: `Восстановлено: ${n} ${pluralRu(n, "сессия", "сессии", "сессий")}`, danger: false };
     renderHistoryScreen();
   } catch {
     screens.showHistoryError("Не получилось восстановить данные. Попробуйте ещё раз.");
