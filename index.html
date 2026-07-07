@@ -22,6 +22,7 @@
     <button type="button" class="card accent card-btn" id="resume-tile" hidden></button>
     <button type="button" class="card accent card-btn" id="measure-tile" hidden>Замеры 📏 — рабочие максимумы месяца</button>
     <button type="button" class="card card-btn" id="backup-tile" hidden></button>
+    <button type="button" class="card card-btn" id="food-tile">Еда 🍽</button>
 
     <div class="grid grid2">
       <button type="button" class="btn" id="btn-day-a">Силовая A</button>
@@ -138,6 +139,71 @@
       <input type="text" id="run-input" placeholder="напр. 5 км, 30 мин">
     </div>
     <button type="button" class="btn btn-wide btn-accent" id="run-done">Готово</button>
+  </section>
+
+  <!-- Экран: Еда (дневник калорий; дизайн_питание_фото_еды.md) -->
+  <section id="screen-food" hidden>
+    <div class="hd"><span class="step">Еда</span></div>
+
+    <div class="card flash" id="food-flash" hidden></div>
+
+    <div class="card big">
+      <h1 id="food-totals-kcal"></h1>
+      <div class="bar"><div class="bar-fill" id="food-bar-kcal"></div></div>
+      <div class="s" id="food-totals-protein"></div>
+      <div class="bar"><div class="bar-fill accent" id="food-bar-protein"></div></div>
+    </div>
+
+    <button type="button" class="card accent card-btn" id="food-pending-tile" hidden></button>
+
+    <div class="card mini" id="food-busy" hidden><div class="v">Распознаю… ⏳</div></div>
+
+    <div class="card" id="food-draft" hidden>
+      <div class="l">Проверь и запиши</div>
+      <input type="text" id="food-draft-name">
+      <div class="input-row">
+        <input type="number" inputmode="numeric" id="food-draft-kcal" placeholder="ккал">
+        <input type="number" inputmode="numeric" id="food-draft-protein" placeholder="белок, г">
+      </div>
+      <div class="grid grid3" id="food-portion-row">
+        <button type="button" class="btn" id="food-portion-half">½ порции</button>
+        <button type="button" class="btn" id="food-portion-one">1</button>
+        <button type="button" class="btn" id="food-portion-big">1½</button>
+      </div>
+      <div class="grid grid2">
+        <button type="button" class="btn btn-accent" id="food-draft-save">Записать</button>
+        <button type="button" class="btn" id="food-draft-cancel">Отмена</button>
+      </div>
+      <button type="button" class="btn btn-wide btn-danger" id="food-draft-delete" hidden>Удалить запись</button>
+    </div>
+
+    <div id="food-list"></div>
+
+    <div class="grid grid2">
+      <button type="button" class="btn btn-accent" id="food-photo-btn">📷 Фото</button>
+      <button type="button" class="btn" id="food-text-btn">✍️ Текстом</button>
+    </div>
+    <input type="file" id="food-file-input" accept="image/*" hidden>
+
+    <div class="input-row" id="food-text-row" hidden>
+      <input type="text" id="food-text-input" placeholder="напр. 2 яйца и творог 200 г">
+      <button type="button" class="btn btn-accent" id="food-text-submit">Оценить</button>
+    </div>
+
+    <div class="error" id="food-error" hidden></div>
+
+    <div class="card" id="food-settings" hidden>
+      <div class="l">Настройки еды</div>
+      <input type="password" id="food-key-input" placeholder="Ключ API (sk-ant-…)">
+      <div class="input-row">
+        <input type="number" inputmode="numeric" id="food-goal-kcal" placeholder="цель, ккал">
+        <input type="number" inputmode="numeric" id="food-goal-protein" placeholder="цель белка, г">
+      </div>
+      <button type="button" class="btn btn-wide" id="food-settings-save">Сохранить настройки</button>
+    </div>
+    <button type="button" class="btn btn-wide" id="food-settings-btn">⚙️ Настройки еды</button>
+
+    <button type="button" class="btn btn-wide" id="food-back">← Сегодня</button>
   </section>
 
 </div>

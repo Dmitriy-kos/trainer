@@ -71,3 +71,9 @@ p { color: #8E8E93; font-size: 15px; line-height: 1.4; }
 .history-line:last-child { margin-bottom: 0; }
 .history-line.pain { color: #FF3B30; font-weight: 600; }
 .line-edit { background: none; border: none; font-size: 16px; padding: 4px; cursor: pointer; }
+
+/* Модуль «Еда»: прогресс-бары дня */
+.bar { height: 8px; border-radius: 4px; background: rgba(120,120,128,.16); margin: 6px 0 10px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; background: #34C759; transition: width .2s; }
+.bar-fill.accent { background: #0A84FF; }
+.bar-fill.over { background: #FF3B30; }

@@ -1,7 +1,8 @@
 export function buildBackup(programStart, sessions, sets, extraMeta = {}, food = []) {
-  // pendingPayload (base64 фото) в файл бэкапа не пишем: файлы лежат в Google
-  // Диске, фото там не место; при восстановлении pending-запись просто ждёт сети снова.
-  const cleanFood = (food || []).map((f) => ({ ...f, pendingPayload: null }));
+  // pending-записи в бэкап не входят: без payload (base64 фото/текст) их не
+  // распознать после восстановления — мёртвая запись без возможности удаления
+  // из UI; а сам payload в файле бэкапа не место (файлы лежат в Google Диске).
+  const cleanFood = (food || []).filter((f) => f.status !== "pending").map((f) => ({ ...f, pendingPayload: null }));
   return { app: "trainer", version: 3, exportedAt: new Date().toISOString(),
            meta: { programStart, pullupMax: null, lastBackupDate: null, ...extraMeta },
            sessions, sets, food: cleanFood };

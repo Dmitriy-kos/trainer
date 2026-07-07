@@ -7,6 +7,9 @@ import { parseSetInput, formatLastSets, schemeTargetReps } from "../core/format.
 import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS } from "../core/plan.js";
 import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
+import { DEFAULT_GOALS, dayTotals, scalePortion } from "../core/food.js";
+import { recognizeFood } from "../core/claude.js";
+import { compressImage } from "./image.js";
 import * as screens from "./screens.js";
 
 const DEFAULT_PROGRAM_START = "2026-06-22";
@@ -26,6 +29,13 @@ const state = {
   pullupMax: null,       // {value, date} | null — сохранённый максимум строгих подтягиваний
   lastBackupDate: null,  // дата последней резервной копии (meta) — плитка-напоминание на «Сегодня»
   timer: null,           // {startedAt, durationSec} | null — таймер отдыха (ничего не пишет в БД)
+  food: [],             // записи еды (все даты), зеркало store
+  apiKey: null,          // ключ Claude API — только в meta, в бэкап не попадает
+  foodGoals: { ...DEFAULT_GOALS }, // {kcal, protein} — цели дня, редактируются в настройках
+  foodDraft: null,       // черновик карточки-подтверждения: {base:{kcal,protein,fat,carbs}, name, kcal, protein, fat, carbs, comment, portion, source, editingId|null, pendingPayload|null}
+  foodTextOpen: false,
+  foodSettingsOpen: false,
+  foodBusy: false,       // идёт распознавание (спиннер)
 };
 
 function pluralRu(n, one, few, many) {
@@ -40,6 +50,11 @@ function todayStr() {
   // ЛОКАЛЬНАЯ дата — не toISOString() (тот даёт UTC и после полуночи съедет на вчера).
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function todayTimeStr() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 function todayWeekday() {
@@ -95,6 +110,7 @@ function renderTodayScreen() {
     measureLabel,
     backupLabel,
   });
+  screens.renderFoodTile(foodTileLabel());
 }
 
 function onResume() {
@@ -392,6 +408,220 @@ async function onRunDone() {
   goToday();
 }
 
+// ---------- Еда ----------
+
+function foodTileLabel() {
+  const t = dayTotals(state.food, todayStr());
+  return `Еда 🍽 ${t.kcal} / ${state.foodGoals.kcal} ккал · белок ${t.protein} / ${state.foodGoals.protein} г`;
+}
+
+function goFood() {
+  state.foodDraft = null;
+  state.foodTextOpen = false;
+  state.foodSettingsOpen = false;
+  screens.showFoodError("");
+  screens.showScreen("food");
+  renderFoodScreen();
+}
+
+function buildFoodVm() {
+  const today = todayStr();
+  const t = dayTotals(state.food, today);
+  const todays = state.food.filter((e) => e.date === today)
+    .slice().sort((a, b) => (a.time < b.time ? 1 : -1));
+  return {
+    totals: { kcal: t.kcal, kcalGoal: state.foodGoals.kcal, protein: t.protein, proteinGoal: state.foodGoals.protein },
+    entries: todays.map((e) => ({
+      id: e.id,
+      label: e.status === "pending" ? `${e.time} · ⏳ ждёт сети` : `${e.time} · ${e.name}`,
+      sub: e.status === "pending" ? (e.pendingPayload && e.pendingPayload.text ? `«${e.pendingPayload.text}»` : "фото сохранено") : `${e.kcal} ккал · белок ${e.protein} г`,
+      pending: e.status === "pending",
+    })),
+    pendingCount: state.food.filter((e) => e.status === "pending").length,
+    draft: state.foodDraft ? {
+      name: state.foodDraft.name, kcal: state.foodDraft.kcal, protein: state.foodDraft.protein,
+      portion: state.foodDraft.portion, isEdit: state.foodDraft.editingId != null,
+    } : null,
+    settings: state.foodSettingsOpen ? { hasKey: !!state.apiKey, kcalGoal: state.foodGoals.kcal, proteinGoal: state.foodGoals.protein } : null,
+    textOpen: state.foodTextOpen,
+    busy: state.foodBusy,
+    flash: consumeFlash(),
+  };
+}
+
+function renderFoodScreen() {
+  screens.renderFood(buildFoodVm(), { onEntryTap: (id) => onFoodEntryTap(id) });
+}
+
+function onFoodEntryTap(id) {
+  const e = state.food.find((x) => x.id === id);
+  if (!e || e.status === "pending") return;
+  state.foodDraft = {
+    base: { kcal: e.kcal, protein: e.protein, fat: e.fat, carbs: e.carbs },
+    name: e.name, kcal: e.kcal, protein: e.protein, fat: e.fat, carbs: e.carbs,
+    comment: "", portion: e.portion, source: e.source, editingId: id, pendingPayload: null,
+  };
+  renderFoodScreen();
+}
+
+function onFoodPortion(factor) {
+  if (!state.foodDraft || state.foodDraft.editingId != null) return;
+  const scaled = scalePortion(state.foodDraft.base, factor);
+  state.foodDraft = { ...state.foodDraft, ...scaled, portion: factor };
+  renderFoodScreen();
+}
+
+function readDraftFields() {
+  const f = screens.getFoodDraftFields();
+  if (!f.name.trim() || String(f.kcal).trim() === "" || String(f.protein).trim() === "") {
+    screens.showFoodError("Нужны название и неотрицательные числа.");
+    return null;
+  }
+  const kcal = Math.round(Number(f.kcal));
+  const protein = Math.round(Number(f.protein));
+  if (!f.name.trim() || !Number.isFinite(kcal) || kcal < 0 || !Number.isFinite(protein) || protein < 0) {
+    screens.showFoodError("Нужны название и неотрицательные числа.");
+    return null;
+  }
+  return { name: f.name.trim(), kcal, protein };
+}
+
+async function onFoodDraftSave() {
+  if (!state.foodDraft) return;
+  const fields = readDraftFields();
+  if (!fields) return;
+  screens.showFoodError("");
+  const d = state.foodDraft;
+  if (d.editingId != null) {
+    const old = state.food.find((x) => x.id === d.editingId);
+    const updated = { ...old, ...fields, fat: d.fat, carbs: d.carbs, status: "done", pendingPayload: null };
+    await store.updateFood(updated);
+    state.food = state.food.map((x) => (x.id === updated.id ? updated : x));
+  } else {
+    const rec = { date: todayStr(), time: todayTimeStr(), ...fields, fat: d.fat, carbs: d.carbs,
+      portion: d.portion, source: d.source, status: "done", pendingPayload: null };
+    const id = await store.addFood(rec);
+    state.food.push({ id, ...rec });
+  }
+  state.foodDraft = null;
+  state.flash = { icon: "🍽", text: "Записано", danger: false };
+  renderFoodScreen();
+}
+
+async function onFoodDraftDelete() {
+  if (!state.foodDraft || state.foodDraft.editingId == null) return;
+  await store.deleteFood(state.foodDraft.editingId);
+  state.food = state.food.filter((x) => x.id !== state.foodDraft.editingId);
+  state.foodDraft = null;
+  state.flash = { icon: "🗑", text: "Удалено", danger: false };
+  renderFoodScreen();
+}
+
+function onFoodDraftCancel() {
+  state.foodDraft = null;
+  screens.showFoodError("");
+  renderFoodScreen();
+}
+
+async function onFoodSettingsSave() {
+  const s = screens.getFoodSettings();
+  const kcalGoal = Math.round(Number(s.kcalGoal));
+  const proteinGoal = Math.round(Number(s.proteinGoal));
+  if (!Number.isFinite(kcalGoal) || kcalGoal <= 0 || !Number.isFinite(proteinGoal) || proteinGoal <= 0) {
+    screens.showFoodError("Цели должны быть положительными числами.");
+    return;
+  }
+  screens.showFoodError("");
+  if (s.apiKey) {
+    await store.setMeta("apiKey", s.apiKey);
+    state.apiKey = s.apiKey;
+  }
+  state.foodGoals = { kcal: kcalGoal, protein: proteinGoal };
+  await store.setMeta("foodGoals", state.foodGoals);
+  state.foodSettingsOpen = false;
+  state.flash = { icon: "⚙️", text: "Настройки сохранены", danger: false };
+  renderFoodScreen();
+}
+
+function openDraftFromRecognition(parsed, source, editingId = null) {
+  state.foodDraft = {
+    base: { kcal: parsed.kcal, protein: parsed.protein, fat: parsed.fat, carbs: parsed.carbs },
+    ...parsed, portion: 1, source, editingId, pendingPayload: null,
+  };
+  state.foodBusy = false;
+  renderFoodScreen();
+}
+
+async function queuePending(payload) {
+  // Нет сети: сохраняем сырьё (сжатое фото или текст) в очередь — распознаем позже.
+  const rec = { date: todayStr(), time: todayTimeStr(), name: "", kcal: 0, protein: 0, fat: 0, carbs: 0,
+    portion: 1, source: payload.image ? "photo" : "text", status: "pending", pendingPayload: payload };
+  const id = await store.addFood(rec);
+  state.food.push({ id, ...rec });
+  state.foodBusy = false;
+  state.flash = { icon: "⏳", text: "Нет связи — сохранил, распознаю при сети.", danger: false };
+  renderFoodScreen();
+}
+
+async function recognizeOrQueue(payload, source) {
+  if (!state.apiKey) {
+    state.foodSettingsOpen = true;
+    state.foodBusy = false;
+    renderFoodScreen();
+    screens.showFoodError("Сначала укажи ключ API (console.anthropic.com) и сохрани настройки.");
+    return;
+  }
+  state.foodBusy = true;
+  screens.showFoodError("");
+  renderFoodScreen();
+  try {
+    const parsed = await recognizeFood({ apiKey: state.apiKey, image: payload.image ?? null, text: payload.text ?? null });
+    openDraftFromRecognition(parsed, source);
+  } catch (e) {
+    if (e.offline) { await queuePending(payload); return; }
+    state.foodBusy = false;
+    renderFoodScreen();
+    screens.showFoodError(e.message);
+  }
+}
+
+async function onFoodPhotoPick(file) {
+  if (!file) return;
+  let image;
+  try {
+    image = await compressImage(file);
+  } catch (e) {
+    screens.showFoodError(e.message);
+    return;
+  }
+  await recognizeOrQueue({ image }, "photo");
+}
+
+async function onFoodTextSubmit() {
+  const text = screens.getFoodTextInput().trim();
+  if (!text) return;
+  state.foodTextOpen = false;
+  await recognizeOrQueue({ text }, "text");
+}
+
+async function onFoodRetryPending() {
+  if (state.foodDraft) return;
+  const p = state.food.filter((e) => e.status === "pending").sort((a, b) => a.id - b.id)[0];
+  if (!p || !state.apiKey) return;
+  state.foodBusy = true;
+  screens.showFoodError("");
+  renderFoodScreen();
+  try {
+    const parsed = await recognizeFood({ apiKey: state.apiKey,
+      image: p.pendingPayload.image ?? null, text: p.pendingPayload.text ?? null });
+    openDraftFromRecognition(parsed, p.source, p.id);
+  } catch (e) {
+    state.foodBusy = false;
+    renderFoodScreen();
+    screens.showFoodError(e.offline ? "Сети всё ещё нет — попробуй позже." : e.message);
+  }
+}
+
 // ---------- История ----------
 
 // Подходы сессии, сгруппированные по упражнению в порядке orderIdx плана
@@ -506,7 +736,7 @@ async function onExport() {
     const backup = buildBackup(state.programStart, state.sessions, state.sets, {
       pullupMax: state.pullupMax ?? null,
       lastBackupDate: todayStr(),
-    });
+    }, state.food);
     const json = JSON.stringify(backup, null, 2);
     screens.downloadFile(`trainer-backup-${todayStr()}.json`, json, "application/json");
     await store.setMeta("lastBackupDate", todayStr());
@@ -556,9 +786,17 @@ async function onImportPick(file) {
         pullupMax: backup.meta.pullupMax,
         lastBackupDate: backup.meta.lastBackupDate,
       },
+      food: backup.food,
     });
+    // clearAll() стёр ВЕСЬ meta-store, включая настройки устройства (ключ API,
+    // цели еды), которых в файле бэкапа нет и не должно быть. Пересеиваем их
+    // из памяти обратно в базу — иначе после перезапуска PWA init() прочитает
+    // null: распознавание молча отвалится, цели сбросятся на дефолт.
+    if (state.apiKey) await store.setMeta("apiKey", state.apiKey);
+    await store.setMeta("foodGoals", state.foodGoals);
     state.sessions = await store.getAllSessions();
     state.sets = await store.getAllSets();
+    state.food = await store.getAllFood();
     state.programStart = backup.meta.programStart;
     state.pullupMax = backup.meta.pullupMax;
     state.lastBackupDate = backup.meta.lastBackupDate;
@@ -660,6 +898,20 @@ function renderDemoHistory() {
   renderHistoryScreen();
 }
 
+function renderDemoFood() {
+  screens.showScreen("food");
+  screens.renderFood({
+    totals: { kcal: 1450, kcalGoal: 2250, protein: 96, proteinGoal: 160 },
+    entries: [
+      { id: 2, label: "13:05 · Гречка с курицей", sub: "550 ккал · белок 45 г", pending: false },
+      { id: 1, label: "08:30 · Овсянка с бананом", sub: "420 ккал · белок 14 г", pending: false },
+    ],
+    pendingCount: 1,
+    draft: { name: "Борщ со сметаной", kcal: 320, protein: 14, portion: 1, isEdit: false },
+    settings: null, textOpen: false, busy: false, flash: null,
+  }, { onEntryTap: () => {} });
+}
+
 // ---------- Инициализация ----------
 
 // Гвард от двойного тапа: пока асинхронное действие пишет в store, повторные
@@ -706,6 +958,23 @@ function bindEvents() {
   screens.on("done-back", "click", goToday);
 
   screens.on("run-done", "click", () => guarded(onRunDone));
+
+  screens.on("food-tile", "click", goFood);
+  screens.on("food-back", "click", goToday);
+  screens.on("food-portion-half", "click", () => onFoodPortion(0.5));
+  screens.on("food-portion-one", "click", () => onFoodPortion(1));
+  screens.on("food-portion-big", "click", () => onFoodPortion(1.5));
+  screens.on("food-draft-save", "click", () => guarded(onFoodDraftSave));
+  screens.on("food-draft-delete", "click", () => guarded(onFoodDraftDelete));
+  screens.on("food-draft-cancel", "click", onFoodDraftCancel);
+  screens.on("food-settings-btn", "click", () => { state.foodSettingsOpen = !state.foodSettingsOpen; renderFoodScreen(); });
+  screens.on("food-settings-save", "click", () => guarded(onFoodSettingsSave));
+  screens.on("food-text-btn", "click", () => { state.foodTextOpen = !state.foodTextOpen; renderFoodScreen(); });
+  screens.on("food-photo-btn", "click", screens.openFoodFilePicker);
+  screens.onFoodFilePicked((file) => guarded(async () => { await onFoodPhotoPick(file); screens.resetFoodFileInput(); }));
+  screens.on("food-text-submit", "click", () => guarded(onFoodTextSubmit));
+  screens.onInputEnter("food-text-input", () => guarded(onFoodTextSubmit));
+  screens.on("food-pending-tile", "click", () => guarded(onFoodRetryPending));
 }
 
 async function init() {
@@ -720,6 +989,10 @@ async function init() {
     renderDemoHistory();
     return;
   }
+  if (params.get("screen") === "food-demo") {
+    renderDemoFood();
+    return;
+  }
 
   bindEvents();
 
@@ -732,6 +1005,9 @@ async function init() {
   state.programStart = programStart;
   state.pullupMax = (await store.getMeta("pullupMax")) ?? null;
   state.lastBackupDate = (await store.getMeta("lastBackupDate")) ?? null;
+  state.apiKey = (await store.getMeta("apiKey")) ?? null;
+  state.foodGoals = (await store.getMeta("foodGoals")) ?? { ...DEFAULT_GOALS };
+  state.food = await store.getAllFood();
   state.sessions = await store.getAllSessions();
   state.sets = await store.getAllSets();
 

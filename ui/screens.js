@@ -4,7 +4,7 @@
 
 const $ = (id) => document.getElementById(id);
 
-const SCREEN_IDS = ["today", "history", "session", "wellbeing", "done", "run"];
+const SCREEN_IDS = ["today", "history", "session", "wellbeing", "done", "run", "food"];
 
 export function showScreen(name) {
   for (const s of SCREEN_IDS) $(`screen-${s}`).hidden = s !== name;
@@ -331,3 +331,89 @@ export function renderDone({ alert }) {
 export function renderRun() {
   $("run-input").value = "";
 }
+
+// ---------- Еда ----------
+
+export function renderFoodTile(label) {
+  $("food-tile").textContent = label;
+}
+
+export function renderFood(vm, handlers) {
+  const t = vm.totals;
+  $("food-totals-kcal").textContent = `${t.kcal} / ${t.kcalGoal} ккал`;
+  $("food-totals-protein").textContent = `белок ${t.protein} / ${t.proteinGoal} г`;
+  const pct = (v, goal) => `${Math.min(100, Math.round((v / goal) * 100))}%`;
+  $("food-bar-kcal").style.width = pct(t.kcal, t.kcalGoal);
+  $("food-bar-kcal").classList.toggle("over", t.kcal > t.kcalGoal);
+  $("food-bar-protein").style.width = pct(t.protein, t.proteinGoal);
+
+  const pending = $("food-pending-tile");
+  pending.hidden = vm.pendingCount === 0;
+  if (vm.pendingCount > 0) pending.textContent = `⏳ Ждут сети: ${vm.pendingCount} — распознать`;
+
+  $("food-busy").hidden = !vm.busy;
+
+  const draft = $("food-draft");
+  draft.hidden = !vm.draft;
+  if (vm.draft) {
+    $("food-draft-name").value = vm.draft.name;
+    $("food-draft-kcal").value = vm.draft.kcal;
+    $("food-draft-protein").value = vm.draft.protein;
+    $("food-portion-row").hidden = !!vm.draft.isEdit;
+    $("food-draft-delete").hidden = !vm.draft.isEdit;
+    for (const [id, f] of [["food-portion-half", 0.5], ["food-portion-one", 1], ["food-portion-big", 1.5]])
+      $(id).classList.toggle("btn-accent", vm.draft.portion === f);
+  }
+
+  const list = $("food-list");
+  list.textContent = "";
+  for (const e of vm.entries) {
+    const tile = document.createElement("button");
+    tile.type = "button";
+    tile.className = "card card-btn history-tile";
+    const title = document.createElement("div");
+    title.className = "history-title";
+    title.textContent = e.label;
+    tile.appendChild(title);
+    const sub = document.createElement("div");
+    sub.className = "history-sub";
+    sub.textContent = e.sub;
+    tile.appendChild(sub);
+    if (!e.pending) tile.addEventListener("click", () => handlers.onEntryTap(e.id));
+    list.appendChild(tile);
+  }
+
+  $("food-text-row").hidden = !vm.textOpen;
+  const st = $("food-settings");
+  st.hidden = !vm.settings;
+  if (vm.settings) {
+    $("food-key-input").value = "";
+    $("food-key-input").placeholder = vm.settings.hasKey ? "Ключ сохранён — ввести новый?" : "Ключ API (sk-ant-…)";
+    $("food-goal-kcal").value = vm.settings.kcalGoal;
+    $("food-goal-protein").value = vm.settings.proteinGoal;
+  }
+
+  renderFlash($("food-flash"), vm.flash);
+}
+
+export function getFoodTextInput() { return $("food-text-input").value; }
+
+export function getFoodDraftFields() {
+  return { name: $("food-draft-name").value, kcal: $("food-draft-kcal").value, protein: $("food-draft-protein").value };
+}
+
+export function getFoodSettings() {
+  return { apiKey: $("food-key-input").value.trim(), kcalGoal: $("food-goal-kcal").value, proteinGoal: $("food-goal-protein").value };
+}
+
+export function showFoodError(msg) {
+  const el = $("food-error");
+  el.textContent = msg || "";
+  el.hidden = !msg;
+}
+
+export function openFoodFilePicker() { $("food-file-input").click(); }
+export function onFoodFilePicked(handler) {
+  $("food-file-input").addEventListener("change", (e) => handler(e.target.files[0] || null));
+}
+export function resetFoodFileInput() { $("food-file-input").value = ""; }
