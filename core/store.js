@@ -93,3 +93,23 @@ export async function bulkImport({ sessions, sets, meta }) {
   for (const [key, value] of Object.entries(meta || {})) t.objectStore("meta").put({ key, value });
   await txDone(t);
 }
+
+// Замена всех подходов упражнения в сессии ОДНОЙ транзакцией: удалить старые
+// (включая painFlag) + добавить новые. rows — без id (autoIncrement).
+// Вызывающий обязан перечитать getAllSets() после.
+export async function replaceSets(sessionId, exercise, rows) {
+  const t = requireDb().transaction("sets", "readwrite");
+  const os = t.objectStore("sets");
+  await new Promise((resolve, reject) => {
+    const cur = os.openCursor();
+    cur.onsuccess = () => {
+      const c = cur.result;
+      if (!c) return resolve();
+      if (c.value.sessionId === sessionId && c.value.exercise === exercise) c.delete();
+      c.continue();
+    };
+    cur.onerror = () => reject(cur.error);
+  });
+  for (const r of rows) os.add(r);
+  await txDone(t);
+}

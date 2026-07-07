@@ -21,3 +21,11 @@ export function recentWellbeing(sessions, limit = 3) {
 export function unfinishedSession(sessions) {
   return sessions.filter((s) => s.status === "open").sort(newerFirst)[0] ?? null;
 }
+
+// Все подходы упражнения в конкретной сессии (включая painFlag) — для экрана
+// просмотра/правки. Сортировка по setIdx (painFlag-запись имеет setIdx 0 — первая).
+export function sessionExerciseSets(sets, sessionId, exercise) {
+  return sets
+    .filter((x) => x.sessionId === sessionId && x.exercise === exercise)
+    .sort((a, b) => a.setIdx - b.setIdx);
+}

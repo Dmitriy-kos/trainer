@@ -63,9 +63,8 @@ export function renderToday({ hint, weekLabel, todayDay, resumeLabel }) {
 
 // ---------- История ----------
 
-function renderHistoryItem(list, item, onToggle) {
-  const tile = document.createElement("button");
-  tile.type = "button";
+function renderHistoryItem(list, item, handlers) {
+  const tile = document.createElement("div");
   tile.className = "card card-btn history-tile";
 
   const title = document.createElement("div");
@@ -98,18 +97,59 @@ function renderHistoryItem(list, item, onToggle) {
         const row = document.createElement("div");
         row.className = "history-line";
         row.classList.toggle("pain", !!line.pain);
-        row.textContent = line.text;
+        const txt = document.createElement("span");
+        txt.textContent = line.text;
+        row.appendChild(txt);
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "line-edit";
+        edit.textContent = "✏️";
+        edit.addEventListener("click", (e) => {
+          e.stopPropagation();
+          handlers.onEditOpen(item.id, line.exercise);
+        });
+        row.appendChild(edit);
         details.appendChild(row);
+
+        if (item.editExercise === line.exercise) {
+          const editor = document.createElement("div");
+          editor.className = "input-row";
+          const input = document.createElement("input");
+          input.type = "text";
+          input.inputMode = "text";
+          input.id = "history-edit-input";
+          input.placeholder = "напр. 50-5,5,5 или 50-5 52-5";
+          input.addEventListener("click", (e) => e.stopPropagation());
+          editor.appendChild(input);
+          const okBtn = document.createElement("button");
+          okBtn.type = "button";
+          okBtn.className = "btn btn-accent";
+          okBtn.textContent = "Заменить";
+          okBtn.addEventListener("click", (e) => { e.stopPropagation(); handlers.onEditSubmit(input.value); });
+          editor.appendChild(okBtn);
+          const cancel = document.createElement("button");
+          cancel.type = "button";
+          cancel.className = "btn";
+          cancel.textContent = "Отмена";
+          cancel.addEventListener("click", (e) => { e.stopPropagation(); handlers.onEditCancel(); });
+          editor.appendChild(cancel);
+          details.appendChild(editor);
+          const err = document.createElement("div");
+          err.className = "error";
+          err.id = "history-edit-error";
+          err.hidden = true;
+          details.appendChild(err);
+        }
       }
     }
     tile.appendChild(details);
   }
 
-  tile.addEventListener("click", () => onToggle(item.id));
+  tile.addEventListener("click", () => handlers.onToggle(item.id));
   list.appendChild(tile);
 }
 
-export function renderHistory(vm, onToggle) {
+export function renderHistory(vm, handlers) {
   const list = $("history-list");
   list.textContent = "";
 
@@ -121,10 +161,17 @@ export function renderHistory(vm, onToggle) {
     card.appendChild(p);
     list.appendChild(card);
   } else {
-    for (const item of vm.items) renderHistoryItem(list, item, onToggle);
+    for (const item of vm.items) renderHistoryItem(list, item, handlers);
   }
 
   renderFlash($("history-flash"), vm.flash);
+}
+
+export function showHistoryEditError(msg) {
+  const el = document.getElementById("history-edit-error");
+  if (!el) return;
+  el.textContent = msg || "";
+  el.hidden = !msg;
 }
 
 export function showHistoryError(msg) {
@@ -200,6 +247,17 @@ export function renderSession(vm) {
   showSessionError("");
 
   $("session-same").disabled = vm.sameDisabled;
+
+  const recWrap = $("session-recorded");
+  if (vm.recordedText != null) {
+    $("session-recorded-value").textContent = vm.recordedText;
+    recWrap.hidden = false;
+  } else {
+    recWrap.hidden = true;
+  }
+  $("session-back").disabled = !vm.canBack;
+  $("session-forward").hidden = !vm.isReview;
+  $("session-same").hidden = !!vm.isReview;
 
   renderFlash($("session-flash"), vm.flash);
 }

@@ -5,7 +5,7 @@ import * as store from "../core/store.js";
 import { currentWeek, weekLabel, autoregulationHint, overtrainingAlert } from "../core/logic.js";
 import { parseSetInput, formatLastSets, schemeTargetReps } from "../core/format.js";
 import { DAY_PLANS, dayForWeekday, weekdayHint, techniqueImage } from "../core/plan.js";
-import { lastSets, recentWellbeing, unfinishedSession, newerFirst } from "../core/queries.js";
+import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
 import * as screens from "./screens.js";
 
@@ -17,9 +17,11 @@ const state = {
   programStart: DEFAULT_PROGRAM_START,
   session: null,       // текущая открытая силовая сессия (в памяти, синхронно с store)
   exercises: [],        // DAY_PLANS[session.day], отсортировано по orderIdx
+  viewIdx: null,          // индекс просматриваемого упражнения при навигации «← назад»; null = обычный режим
   flash: null,           // {icon, text, danger} | null — плитка, показывается один раз
   runSession: null,       // сессия только что записанного бега, пока открыт экран деталей
   historyExpandedId: null, // id сессии, чьи подходы сейчас раскрыты в Истории (одна за раз)
+  historyEdit: null,     // {sessionId, exercise} | null — какая строка сейчас редактируется в Истории
 };
 
 function pluralRu(n, one, few, many) {
@@ -81,6 +83,7 @@ function onResume() {
 
 function goHistory() {
   state.historyExpandedId = null;
+  state.historyEdit = null;
   screens.showHistoryError("");
   screens.showScreen("history");
   renderHistoryScreen();
@@ -100,6 +103,7 @@ async function onStartStrength(day) {
 
 function openSessionFlow(session) {
   state.session = session;
+  state.viewIdx = null;
   state.exercises = DAY_PLANS[session.day].slice().sort((a, b) => a.orderIdx - b.orderIdx);
   if (session.progressIdx >= state.exercises.length) {
     // Все 5 упражнений уже отмечены, самочувствие ещё не спросили (сессия
@@ -112,15 +116,30 @@ function openSessionFlow(session) {
   }
 }
 
+function effectiveIdx() {
+  return state.viewIdx ?? state.session.progressIdx;
+}
+
 function currentItem() {
-  return state.exercises[state.session.progressIdx];
+  return state.exercises[effectiveIdx()];
 }
 
 function buildSessionVm() {
-  const item = currentItem();
+  const idx = effectiveIdx();
+  const item = state.exercises[idx];
+  const isReview = state.viewIdx != null && state.viewIdx < state.session.progressIdx;
   const last = lastSets(state.sessions, state.sets, item.exercise);
+
+  let recordedText = null;
+  if (isReview) {
+    const recorded = sessionExerciseSets(state.sets, state.session.id, item.exercise);
+    if (recorded.length === 0) recordedText = "пропущено";
+    else if (recorded.every((s) => s.painFlag)) recordedText = "🚑 больно";
+    else recordedText = "✓ " + formatLastSets(recorded.filter((s) => !s.painFlag));
+  }
+
   return {
-    stepLabel: `Упражнение ${state.session.progressIdx + 1} / ${state.exercises.length}`,
+    stepLabel: `Упражнение ${idx + 1} / ${state.exercises.length}`,
     pillLabel: `Силовая ${state.session.day} · Неделя ${state.session.week}`,
     techniqueImg: techniqueImage(item.exercise),
     exercise: item.exercise,
@@ -128,6 +147,9 @@ function buildSessionVm() {
     note: item.note || "",
     lastSetsText: formatLastSets(last),
     sameDisabled: last.length === 0,
+    recordedText,
+    canBack: idx > 0,
+    isReview,
     flash: consumeFlash(),
   };
 }
@@ -152,6 +174,38 @@ function afterExerciseAction() {
   }
 }
 
+// ---------- Навигация «← назад» и режим просмотра/правки ----------
+
+function inReview() {
+  return state.viewIdx != null && state.viewIdx < state.session.progressIdx;
+}
+
+function onBack() {
+  const idx = effectiveIdx();
+  if (idx === 0) return;
+  state.viewIdx = idx - 1;
+  screens.renderSession(buildSessionVm());
+}
+
+function onForward() {
+  if (state.viewIdx == null) return;
+  state.viewIdx += 1;
+  if (state.viewIdx >= state.session.progressIdx) state.viewIdx = null;
+  if (state.session.progressIdx >= state.exercises.length && state.viewIdx == null) {
+    goWellbeing();
+  } else {
+    screens.renderSession(buildSessionVm());
+  }
+}
+
+async function replaceCurrent(rows) {
+  const item = currentItem();
+  await store.replaceSets(state.session.id, item.exercise, rows);
+  state.sets = await store.getAllSets();
+  state.flash = { icon: "✏️", text: "Исправлено", danger: false };
+  screens.renderSession(buildSessionVm());
+}
+
 async function onSubmit() {
   const item = currentItem();
   let parsed;
@@ -162,6 +216,15 @@ async function onSubmit() {
     return;
   }
   screens.showSessionError("");
+
+  if (inReview()) {
+    const rows = parsed.map((p, i) => ({
+      sessionId: state.session.id, exercise: item.exercise,
+      setIdx: i + 1, weight: p.weight, reps: p.reps, rpe: item.targetRpe, painFlag: 0,
+    }));
+    await replaceCurrent(rows);
+    return;
+  }
 
   const rows = parsed.map((p, i) => ({ setIdx: i + 1, weight: p.weight, reps: p.reps, rpe: item.targetRpe, painFlag: 0 }));
   // Паритет с bot/handlers.py: автогуляция считается по введённым повторам
@@ -175,6 +238,7 @@ async function onSubmit() {
 }
 
 async function onSame() {
+  if (inReview()) return;
   const item = currentItem();
   const last = lastSets(state.sessions, state.sets, item.exercise);
   if (last.length === 0) return;
@@ -184,11 +248,24 @@ async function onSame() {
 }
 
 async function onSkip() {
+  if (inReview()) {
+    await replaceCurrent([]);
+    return;
+  }
   await logSetsAndAdvance(currentItem().exercise, []);
   afterExerciseAction();
 }
 
 async function onPain() {
+  if (inReview()) {
+    const item = currentItem();
+    state.flash = { icon: "🚑", text: "Записана боль по этому движению.", danger: true };
+    await store.replaceSets(state.session.id, item.exercise,
+      [{ sessionId: state.session.id, exercise: item.exercise, setIdx: 0, weight: null, reps: null, rpe: null, painFlag: 1 }]);
+    state.sets = await store.getAllSets();
+    screens.renderSession(buildSessionVm());
+    return;
+  }
   const item = currentItem();
   state.flash = {
     icon: "🚑",
@@ -276,8 +353,8 @@ function groupSessionSets(session) {
     const exSets = sets.filter((x) => x.exercise === exercise).sort((a, b) => a.setIdx - b.setIdx);
     const clean = exSets.filter((x) => !x.painFlag);
     const pain = exSets.filter((x) => x.painFlag);
-    if (clean.length > 0) lines.push({ text: `${exercise}: ${formatLastSets(clean)}`, pain: false });
-    if (pain.length > 0) lines.push({ text: `${exercise}: 🚑 больно`, pain: true });
+    if (clean.length > 0) lines.push({ text: `${exercise}: ${formatLastSets(clean)}`, pain: false, exercise });
+    if (pain.length > 0) lines.push({ text: `${exercise}: 🚑 больно`, pain: true, exercise });
   }
   return { noSets: false, lines };
 }
@@ -294,6 +371,7 @@ function buildHistoryItemVm(session) {
     subLabel,
     note: session.day === "RUN" && session.note ? session.note : null,
     expanded: state.historyExpandedId === session.id,
+    editExercise: state.historyEdit && state.historyEdit.sessionId === session.id ? state.historyEdit.exercise : null,
     noSets,
     lines,
   };
@@ -307,11 +385,56 @@ function buildHistoryVm() {
 }
 
 function renderHistoryScreen() {
-  screens.renderHistory(buildHistoryVm(), onHistoryToggle);
+  screens.renderHistory(buildHistoryVm(), {
+    onToggle: onHistoryToggle,
+    onEditOpen: onHistoryEditOpen,
+    onEditCancel: onHistoryEditCancel,
+    onEditSubmit: (t) => guarded(() => onHistoryEditSubmit(t)),
+  });
 }
 
 function onHistoryToggle(id) {
   state.historyExpandedId = state.historyExpandedId === id ? null : id;
+  state.historyEdit = null;
+  renderHistoryScreen();
+}
+
+function onHistoryEditOpen(sessionId, exercise) {
+  state.historyEdit = { sessionId, exercise };
+  state.historyExpandedId = sessionId;
+  renderHistoryScreen();
+}
+
+function onHistoryEditCancel() {
+  state.historyEdit = null;
+  renderHistoryScreen();
+}
+
+function historyTargetRpe(session, exercise) {
+  const plan = DAY_PLANS[session.day];
+  const item = plan ? plan.find((it) => it.exercise === exercise) : null;
+  return item ? item.targetRpe : null;
+}
+
+async function onHistoryEditSubmit(text) {
+  if (!state.historyEdit) return;
+  const { sessionId, exercise } = state.historyEdit;
+  const session = state.sessions.find((s) => s.id === sessionId);
+  let parsed;
+  try {
+    parsed = parseSetInput(text);
+  } catch (e) {
+    screens.showHistoryEditError(e.message);
+    return;
+  }
+  const rpe = historyTargetRpe(session, exercise);
+  const rows = parsed.map((p, i) => ({
+    sessionId, exercise, setIdx: i + 1, weight: p.weight, reps: p.reps, rpe, painFlag: 0,
+  }));
+  await store.replaceSets(sessionId, exercise, rows);
+  state.sets = await store.getAllSets();
+  state.historyEdit = null;
+  state.flash = { icon: "✏️", text: "Исправлено", danger: false };
   renderHistoryScreen();
 }
 
@@ -369,6 +492,7 @@ async function onImportPick(file) {
     state.sets = await store.getAllSets();
     state.programStart = backup.meta.programStart;
     state.historyExpandedId = null;
+    state.historyEdit = null;
     state.flash = { icon: "✅", text: `Восстановлено: ${n} ${pluralRu(n, "сессия", "сессии", "сессий")}`, danger: false };
     renderHistoryScreen();
   } catch {
@@ -453,6 +577,8 @@ function bindEvents() {
   screens.on("session-same", "click", () => guarded(onSame));
   screens.on("session-skip", "click", () => guarded(onSkip));
   screens.on("session-pain", "click", () => guarded(onPain));
+  screens.on("session-back", "click", () => guarded(async () => onBack()));
+  screens.on("session-forward", "click", () => guarded(async () => onForward()));
 
   screens.on("wellbeing-skip", "click", () => guarded(onWellbeingSkip));
   screens.on("done-back", "click", goToday);

@@ -63,6 +63,7 @@ p { color: #8E8E93; font-size: 15px; line-height: 1.4; }
 .history-title { font-size: 16px; font-weight: 800; letter-spacing: -.01em; margin-bottom: 4px; }
 .history-sub { font-size: 13px; color: #8E8E93; font-weight: 600; }
 .history-details { margin-top: 14px; padding-top: 14px; border-top: 1px solid #EFEFF4; }
-.history-line { font-size: 14px; margin-bottom: 6px; }
+.history-line { font-size: 14px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .history-line:last-child { margin-bottom: 0; }
 .history-line.pain { color: #FF3B30; font-weight: 600; }
+.line-edit { background: none; border: none; font-size: 16px; padding: 4px; cursor: pointer; }
