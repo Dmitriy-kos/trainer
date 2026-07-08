@@ -968,6 +968,7 @@ function bindEvents() {
 
   // Таймер отдыха ничего не пишет в БД — без guarded (иначе тап блокировался
   // бы, пока идёт запись подхода).
+  screens.on("btn-rest-1", "click", () => startTimer(60));
   screens.on("btn-rest-2", "click", () => startTimer(120));
   screens.on("btn-rest-3", "click", () => startTimer(180));
   screens.on("session-timer", "click", () => stopTimer(false));
