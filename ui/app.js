@@ -364,26 +364,8 @@ async function onSkip() {
   afterExerciseAction();
 }
 
-async function onPain() {
-  if (inPreview()) return;
-  if (inReview()) {
-    const item = currentItem();
-    state.flash = { icon: "🚑", text: "Записана боль по этому движению.", danger: true };
-    await store.replaceSets(state.session.id, item.exercise,
-      [{ sessionId: state.session.id, exercise: item.exercise, setIdx: 0, weight: null, reps: null, rpe: null, painFlag: 1 }]);
-    state.sets = await store.getAllSets();
-    screens.renderSession(buildSessionVm());
-    return;
-  }
-  const item = currentItem();
-  state.flash = {
-    icon: "🚑",
-    text: "Стоп по этому движению — замени или пропусти, не геройствуй.",
-    danger: true,
-  };
-  await logSetsAndAdvance(item.exercise, [{ setIdx: 0, weight: null, reps: null, rpe: null, painFlag: 1 }]);
-  afterExerciseAction();
-}
+// Кнопка «Больно» убрана (решение CEO 10.07.2026). painFlag остаётся в модели:
+// старые записи читаются из бэкапов и показываются в истории строкой «🚑 больно».
 
 // ---------- Самочувствие ----------
 
@@ -962,7 +944,6 @@ function bindEvents() {
   screens.onInputEnter("session-input", () => guarded(onSubmit));
   screens.on("session-same", "click", () => guarded(onSame));
   screens.on("session-skip", "click", () => guarded(onSkip));
-  screens.on("session-pain", "click", () => guarded(onPain));
   screens.on("session-back", "click", () => guarded(onBack));
   screens.on("session-forward", "click", () => guarded(async () => onForward()));
 
