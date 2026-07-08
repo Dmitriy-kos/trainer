@@ -24,6 +24,12 @@
     <button type="button" class="card card-btn" id="backup-tile" hidden></button>
     <button type="button" class="card card-btn" id="food-tile">Еда 🍽</button>
 
+    <button type="button" class="card mini card-btn" id="today-pullup-tile">
+      <div class="l">Максимум подтягиваний</div>
+      <div class="v" id="today-pullup-value"></div>
+    </button>
+    <div class="error" id="today-error" hidden></div>
+
     <div class="grid grid2">
       <button type="button" class="btn" id="btn-day-a">Силовая A</button>
       <button type="button" class="btn" id="btn-day-b">Силовая B</button>
@@ -39,8 +45,7 @@
 
     <div class="card flash" id="history-flash" hidden></div>
 
-    <div id="history-list"></div>
-
+    <!-- Кнопки над списком: копии историй копятся, листать вниз за кнопками неудобно (заказ CEO 08.07). -->
     <div class="grid grid2">
       <button type="button" class="btn" id="history-export">Сохранить копию 📤</button>
       <button type="button" class="btn" id="history-import">Восстановить из копии 📥</button>
@@ -49,6 +54,8 @@
     <div class="error" id="history-error" hidden></div>
 
     <button type="button" class="btn btn-wide" id="btn-history-back">← Сегодня</button>
+
+    <div id="history-list"></div>
   </section>
 
   <!-- Экран: Сессия -->

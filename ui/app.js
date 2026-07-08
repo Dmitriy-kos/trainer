@@ -77,7 +77,14 @@ function goToday() {
   renderTodayScreen();
 }
 
+function pullupMaxTileLabel() {
+  return state.pullupMax
+    ? `${state.pullupMax.value} (обновлён ${state.pullupMax.date}) · тап — изменить`
+    : "не задан · тап — ввести";
+}
+
 function renderTodayScreen() {
+  screens.showTodayError("");
   const weekday = todayWeekday();
   const today = todayStr();
   const { number, week } = programForDate(state.programStart, today);
@@ -109,6 +116,7 @@ function renderTodayScreen() {
     resumeLabel,
     measureLabel,
     backupLabel,
+    pullupLabel: pullupMaxTileLabel(),
   });
   screens.renderFoodTile(foodTileLabel());
 }
@@ -183,9 +191,7 @@ function buildSessionVm() {
   if (isPullup) {
     const maxVal = state.pullupMax ? state.pullupMax.value : null;
     schemeLine = `${pullupDayScheme(state.session.program ?? 1, state.session.week, state.session.day, maxVal)} · усилие ${item.targetRpe}/10`;
-    pullupMaxLabel = state.pullupMax
-      ? `${state.pullupMax.value} (обновлён ${state.pullupMax.date}) · тап — изменить`
-      : "не задан · тап — ввести";
+    pullupMaxLabel = pullupMaxTileLabel();
   }
 
   return {
@@ -265,19 +271,29 @@ function onForward() {
   screens.renderSession(buildSessionVm());
 }
 
-async function onPullupMaxTap() {
+// Общий ввод максимума через prompt. true — сохранено; false — отмена или
+// невалидный ввод (сообщение уходит в showError вызывающего экрана).
+async function askPullupMax(showError) {
   const cur = state.pullupMax ? String(state.pullupMax.value) : "";
   const raw = prompt("Максимум строгих подтягиваний?", cur);
-  if (raw == null) return;
+  if (raw == null) return false;
   const v = parseInt(raw.trim(), 10);
   if (!Number.isInteger(v) || v < 0 || v > 50) {
-    screens.showSessionError("Максимум — целое число 0–50.");
-    return;
+    showError("Максимум — целое число 0–50.");
+    return false;
   }
   state.pullupMax = { value: v, date: todayStr() };
   await store.setMeta("pullupMax", state.pullupMax);
-  screens.showSessionError("");
-  screens.renderSession(buildSessionVm());
+  showError("");
+  return true;
+}
+
+async function onPullupMaxTap() {
+  if (await askPullupMax(screens.showSessionError)) screens.renderSession(buildSessionVm());
+}
+
+async function onTodayPullupTap() {
+  if (await askPullupMax(screens.showTodayError)) renderTodayScreen();
 }
 
 async function replaceCurrent(rows) {
@@ -935,6 +951,7 @@ function bindEvents() {
   screens.on("resume-tile", "click", onResume);
   screens.on("measure-tile", "click", () => guarded(() => onStartStrength("T")));
   screens.on("backup-tile", "click", goHistory);
+  screens.on("today-pullup-tile", "click", () => guarded(onTodayPullupTap));
 
   screens.on("history-export", "click", () => guarded(onExport));
   screens.on("history-import", "click", screens.openFilePicker);

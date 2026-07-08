@@ -42,9 +42,10 @@ function renderFlash(el, flash) {
 
 // ---------- Сегодня ----------
 
-export function renderToday({ hint, weekLabel, todayDay, resumeLabel, measureLabel, backupLabel }) {
+export function renderToday({ hint, weekLabel, todayDay, resumeLabel, measureLabel, backupLabel, pullupLabel }) {
   $("today-title").textContent = hint;
   $("today-week").textContent = weekLabel;
+  $("today-pullup-value").textContent = pullupLabel ?? "";
 
   const resumeTile = $("resume-tile");
   if (resumeLabel) {
@@ -67,6 +68,17 @@ export function renderToday({ hint, weekLabel, todayDay, resumeLabel, measureLab
     $(`btn-day-${day.toLowerCase()}`).classList.toggle("btn-accent", todayDay === day);
   }
   $("btn-run").classList.toggle("btn-accent", todayDay === null);
+}
+
+export function showTodayError(msg) {
+  const el = $("today-error");
+  if (msg) {
+    el.textContent = msg;
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+    el.textContent = "";
+  }
 }
 
 // ---------- История ----------
