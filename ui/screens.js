@@ -105,6 +105,7 @@ function renderHistoryItem(list, item, handlers) {
         const row = document.createElement("div");
         row.className = "history-line";
         row.classList.toggle("pain", !!line.pain);
+        row.classList.toggle("skipped", !!line.skipped);
         const txt = document.createElement("span");
         txt.textContent = line.text;
         row.appendChild(txt);
@@ -267,13 +268,13 @@ export function renderSession(vm) {
   } else {
     recWrap.hidden = true;
   }
-  $("session-back").disabled = !vm.canBack;
-  // Когда «вперёд →» скрыта (обычный режим), «← назад» растягивается на
-  // всю строку грида — иначе .grid2 держит вторую колонку пустой, и кнопка
-  // занимает только половину ширины.
-  $("session-back").style.gridColumn = vm.isReview ? "" : "1 / -1";
-  $("session-forward").hidden = !vm.isReview;
-  $("session-same").hidden = !!vm.isReview;
+  $("session-back").disabled = false;
+  $("session-back").textContent = vm.backLabel ?? "← назад";
+  $("session-forward").disabled = !!vm.forwardDisabled;
+  $("session-same").hidden = !!vm.isReview || !!vm.isPreview;
+  // Предпросмотр будущего упражнения — только чтение: ввод и действия скрыты.
+  $("session-input-row").hidden = !!vm.isPreview;
+  $("session-actions").hidden = !!vm.isPreview;
 
   renderFlash($("session-flash"), vm.flash);
 }

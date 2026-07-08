@@ -5,7 +5,7 @@ import * as store from "../core/store.js";
 import { autoregulationHint, overtrainingAlert, programForDate, measureTile, pullupDayScheme, restRemaining, formatRest, backupReminder } from "../core/logic.js";
 import { parseSetInput, formatLastSets, schemeTargetReps } from "../core/format.js";
 import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS } from "../core/plan.js";
-import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets } from "../core/queries.js";
+import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
 import { DEFAULT_GOALS, dayTotals, scalePortion } from "../core/food.js";
 import { recognizeFood } from "../core/claude.js";
@@ -20,7 +20,7 @@ const state = {
   programStart: DEFAULT_PROGRAM_START,
   session: null,       // текущая открытая силовая сессия (в памяти, синхронно с store)
   exercises: [],        // planForSession(session), отсортировано по orderIdx
-  viewIdx: null,          // индекс просматриваемого упражнения при навигации «← назад»; null = обычный режим
+  viewIdx: null,          // индекс просматриваемого упражнения при навигации ←/→; null = обычный ввод текущего
   flash: null,           // {icon, text, danger} | null — плитка, показывается один раз
   runSession: null,       // сессия только что записанного бега, пока открыт экран деталей
   historyExpandedId: null, // id сессии, чьи подходы сейчас раскрыты в Истории (одна за раз)
@@ -189,7 +189,7 @@ function buildSessionVm() {
   }
 
   return {
-    stepLabel: `Упражнение ${idx + 1} / ${state.exercises.length}`,
+    stepLabel: `Упражнение ${idx + 1} / ${state.exercises.length}${state.viewIdx != null ? " · просмотр" : ""}`,
     pillLabel: `${state.session.day === "T" ? "Замеры" : `Силовая ${state.session.day}`} · Неделя ${state.session.week}`,
     techniqueImg: techniqueImage(item.exercise),
     exercise: item.exercise,
@@ -199,8 +199,10 @@ function buildSessionVm() {
     lastSetsText: formatLastSets(last),
     sameDisabled: last.length === 0,
     recordedText,
-    canBack: idx > 0,
+    backLabel: idx === 0 ? "← выйти" : "← назад",
     isReview,
+    isPreview: inPreview(),
+    forwardDisabled: idx >= state.exercises.length - 1,
     flash: consumeFlash(),
   };
 }
@@ -231,22 +233,36 @@ function inReview() {
   return state.viewIdx != null && state.viewIdx < state.session.progressIdx;
 }
 
-function onBack() {
+function inPreview() {
+  return state.session != null && state.viewIdx != null && state.viewIdx > state.session.progressIdx;
+}
+
+async function onBack() {
   const idx = effectiveIdx();
-  if (idx === 0) return;
-  state.viewIdx = idx - 1;
-  screens.renderSession(buildSessionVm());
+  if (idx > 0) {
+    state.viewIdx = idx - 1;
+    if (state.viewIdx === state.session.progressIdx) state.viewIdx = null; // вернулись к текущему — обычный ввод
+    screens.renderSession(buildSessionVm());
+    return;
+  }
+  // Первое упражнение — «← выйти»: возврат на «Сегодня». Пустую сессию (ничего
+  // не отмечено) стираем без следа — иначе в истории виснет «не завершена»,
+  // а «Сегодня» тянет обратно плиткой «Продолжить» в ошибочно выбранный день.
+  const s = state.session;
+  const empty = s.progressIdx === 0 && !state.sets.some((x) => x.sessionId === s.id);
+  if (empty) {
+    await store.deleteSession(s.id);
+    state.sessions = state.sessions.filter((x) => x.id !== s.id);
+  }
+  goToday();
 }
 
 function onForward() {
-  if (state.viewIdx == null) return;
-  state.viewIdx += 1;
-  if (state.viewIdx >= state.session.progressIdx) state.viewIdx = null;
-  if (state.session.progressIdx >= state.exercises.length && state.viewIdx == null) {
-    goWellbeing();
-  } else {
-    screens.renderSession(buildSessionVm());
-  }
+  const idx = effectiveIdx();
+  if (idx >= state.exercises.length - 1) return; // дальше некуда — кнопка и так неактивна
+  state.viewIdx = idx + 1;
+  if (state.viewIdx === state.session.progressIdx) state.viewIdx = null; // дошли до текущего — обычный ввод
+  screens.renderSession(buildSessionVm());
 }
 
 async function onPullupMaxTap() {
@@ -273,6 +289,7 @@ async function replaceCurrent(rows) {
 }
 
 async function onSubmit() {
+  if (inPreview()) return;
   const item = currentItem();
   let parsed;
   try {
@@ -312,7 +329,7 @@ async function onSubmit() {
 }
 
 async function onSame() {
-  if (inReview()) return;
+  if (inReview() || inPreview()) return;
   const item = currentItem();
   const last = lastSets(state.sessions, state.sets, item.exercise);
   if (last.length === 0) return;
@@ -322,6 +339,7 @@ async function onSame() {
 }
 
 async function onSkip() {
+  if (inPreview()) return;
   if (inReview()) {
     await replaceCurrent([]);
     return;
@@ -331,6 +349,7 @@ async function onSkip() {
 }
 
 async function onPain() {
+  if (inPreview()) return;
   if (inReview()) {
     const item = currentItem();
     state.flash = { icon: "🚑", text: "Записана боль по этому движению.", danger: true };
@@ -624,37 +643,12 @@ async function onFoodRetryPending() {
 
 // ---------- История ----------
 
-// Подходы сессии, сгруппированные по упражнению в порядке orderIdx плана
-// (RUN/чужие данные без плана — по первому появлению), внутри группы по setIdx.
-// Больные подходы (painFlag=1) не подмешиваются в formatLastSets — это была
-// бы потеря данных о боли; выводятся отдельной строкой-маркером.
-function groupSessionSets(session) {
-  const sets = state.sets.filter((x) => x.sessionId === session.id);
-  if (sets.length === 0) return { noSets: true, lines: [] };
-
-  const plan = planForSession(session);
-  const planOrder = plan ? plan.slice().sort((a, b) => a.orderIdx - b.orderIdx).map((it) => it.exercise) : [];
-  const present = [...new Set(sets.map((x) => x.exercise))];
-  const extra = present.filter((ex) => !planOrder.includes(ex));
-  const order = [...planOrder.filter((ex) => present.includes(ex)), ...extra];
-
-  const lines = [];
-  for (const exercise of order) {
-    const exSets = sets.filter((x) => x.exercise === exercise).sort((a, b) => a.setIdx - b.setIdx);
-    const clean = exSets.filter((x) => !x.painFlag);
-    const pain = exSets.filter((x) => x.painFlag);
-    if (clean.length > 0) lines.push({ text: `${exercise}: ${formatLastSets(clean)}`, pain: false, exercise });
-    if (pain.length > 0) lines.push({ text: `${exercise}: 🚑 больно`, pain: true, exercise });
-  }
-  return { noSets: false, lines };
-}
-
 function buildHistoryItemVm(session) {
   const typeLabel = session.day === "RUN" ? "Бег" : session.day === "T" ? "Замеры" : `Силовая ${session.day}`;
   const wellbeingLabel = session.wellbeing != null ? `${session.wellbeing}/10` : "—";
   let subLabel = `Неделя ${session.week} · ${wellbeingLabel}`;
   if (session.status === "open") subLabel += " · не завершена";
-  const { noSets, lines } = groupSessionSets(session);
+  const { noSets, lines } = groupSessionSets(session, state.sets, planForSession(session));
   return {
     id: session.id,
     title: `${session.date} · ${typeLabel}`,
@@ -855,7 +849,7 @@ function stopTimer(finished) {
 
 // ---------- Демо-режим для скриншотов (без записи в БД) ----------
 
-function renderDemoSession() {
+function renderDemoSession(mode) {
   const item = {
     exercise: "Присед со штангой",
     scheme: "4×8",
@@ -863,10 +857,12 @@ function renderDemoSession() {
     note: "глубина в комфорте, спина прямая",
   };
   const demoLast = [{ weight: 80, reps: 8 }, { weight: 80, reps: 8 }, { weight: 80, reps: 7 }];
+  const isReview = mode === "review";
+  const isPreview = mode === "preview";
 
   screens.showScreen("session");
   screens.renderSession({
-    stepLabel: "Упражнение 1 / 5",
+    stepLabel: `Упражнение ${isPreview ? 4 : 1} / 5${isReview || isPreview ? " · просмотр" : ""}`,
     pillLabel: "Силовая A · Неделя 2",
     techniqueImg: techniqueImage(item.exercise),
     exercise: item.exercise,
@@ -874,6 +870,11 @@ function renderDemoSession() {
     note: item.note,
     lastSetsText: formatLastSets(demoLast),
     sameDisabled: false,
+    recordedText: isReview ? "✓ 80×8, 8, 7" : null,
+    backLabel: isReview ? "← выйти" : "← назад",
+    forwardDisabled: false,
+    isReview,
+    isPreview,
     flash: null,
   });
 }
@@ -945,7 +946,7 @@ function bindEvents() {
   screens.on("session-same", "click", () => guarded(onSame));
   screens.on("session-skip", "click", () => guarded(onSkip));
   screens.on("session-pain", "click", () => guarded(onPain));
-  screens.on("session-back", "click", () => guarded(async () => onBack()));
+  screens.on("session-back", "click", () => guarded(onBack));
   screens.on("session-forward", "click", () => guarded(async () => onForward()));
 
   // Таймер отдыха ничего не пишет в БД — без guarded (иначе тап блокировался
@@ -982,7 +983,7 @@ async function init() {
 
   const params = new URLSearchParams(location.search);
   if (params.get("screen") === "session-demo") {
-    renderDemoSession();
+    renderDemoSession(params.get("mode"));
     return;
   }
   if (params.get("screen") === "history-demo") {

@@ -1,4 +1,4 @@
-// Порт bot/plan.py. Паритет: данные из DAY_PLANS, EXERCISE_IMAGE.
+// Данные исходно портированы из bot/plan.py; паритет разорван 08.07.2026 (порядок дня B), источник истины — PWA.
 
 const _WEEKDAY_TO_DAY = { 0: "A", 2: "B", 4: "C" };
 
@@ -7,7 +7,9 @@ const _WEEKDAY_NAMES = [
   "пятница", "суббота", "воскресенье",
 ];
 
-// Программа 1 = бывший DAY_PLANS (данные месяца 1, не менять — паритет с ботом заморожен).
+// Программа 1 = данные месяца 1 (бывший DAY_PLANS). 08.07.2026 порядок дня B изменён
+// решением CEO (подтягивания перед тягой блока) — паритет с bot/plan.py больше не
+// поддерживается, бот в архиве, источник истины — PWA.
 const PROGRAM_1 = {
   number: 1,
   title: "Месяц 1 — втягивание",
@@ -31,8 +33,8 @@ const PROGRAM_1 = {
       { exercise: "Становая тяга", orderIdx: 1, scheme: "4×5", targetRpe: 7, note: "техника, умеренный вес" },
       { exercise: "Жим стоя (OHP)", orderIdx: 2, scheme: "3×8", targetRpe: 7, note: "корпус жёсткий, без прогиба" },
       { exercise: "Выпады с гантелями", orderIdx: 3, scheme: "3×10 / нога", targetRpe: 7, note: "колено не заваливается внутрь" },
-      { exercise: "Тяга верхнего блока", orderIdx: 4, scheme: "3×12", targetRpe: 7, note: "доп. объём для подтягиваний" },
-      { exercise: "Подтягивания (объёмный день)", orderIdx: 5, scheme: "по прогрессии", targetRpe: 8, note: "главный день для цели 10 раз" },
+      { exercise: "Подтягивания (объёмный день)", orderIdx: 4, scheme: "по прогрессии", targetRpe: 8, note: "главный день для цели 10 раз — делаем свежим" },
+      { exercise: "Тяга верхнего блока", orderIdx: 5, scheme: "3×12", targetRpe: 7, note: "добивка после подтягиваний" },
     ],
     C: [
       { exercise: "Фронтальный присед", orderIdx: 1, scheme: "4×6", targetRpe: 7, note: "или жим ногами, если ноги устали" },
@@ -68,8 +70,8 @@ const PROGRAM_2 = {
       { exercise: "Взятие на грудь (power clean)", orderIdx: 1, scheme: "5×3", targetRpe: 7, note: "техника и взрыв, не максимумы" },
       { exercise: "Становая тяга", orderIdx: 2, scheme: "4×4", targetRpe: 8, note: "тяжелее месяца 1" },
       { exercise: "Швунг жимовой (push press)", orderIdx: 3, scheme: "4×5", targetRpe: 8, note: "корпус жёсткий, ноги помогают" },
-      { exercise: "Тяга верхнего блока", orderIdx: 4, scheme: "3×10", targetRpe: 7, note: "объём для подтягиваний" },
-      { exercise: "Подтягивания (объёмный день)", orderIdx: 5, scheme: "по прогрессии", targetRpe: 8, note: "главный день для цели 10 раз" },
+      { exercise: "Подтягивания (объёмный день)", orderIdx: 4, scheme: "по прогрессии", targetRpe: 8, note: "главный день для цели 10 раз — делаем свежим" },
+      { exercise: "Тяга верхнего блока", orderIdx: 5, scheme: "3×10", targetRpe: 7, note: "добивка после подтягиваний" },
       { exercise: "Пресс: hollow hold", orderIdx: 6, scheme: "3×30-45 с", targetRpe: 7, note: "кор под штангу" },
     ],
     C: [

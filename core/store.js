@@ -57,6 +57,10 @@ export function updateSession(session) {
   return wrap(requireDb().transaction("sessions", "readwrite").objectStore("sessions").put(session));
 }
 
+export function deleteSession(id) {
+  return wrap(requireDb().transaction("sessions", "readwrite").objectStore("sessions").delete(id));
+}
+
 export function addSet(set) {
   return wrap(requireDb().transaction("sets", "readwrite").objectStore("sets").add(set));
 }

@@ -70,6 +70,7 @@ p { color: #8E8E93; font-size: 15px; line-height: 1.4; }
 .history-line { font-size: 14px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .history-line:last-child { margin-bottom: 0; }
 .history-line.pain { color: #FF3B30; font-weight: 600; }
+.history-line.skipped { color: #8E8E93; }
 .line-edit { background: none; border: none; font-size: 16px; padding: 4px; cursor: pointer; }
 
 /* Модуль «Еда»: прогресс-бары дня */
