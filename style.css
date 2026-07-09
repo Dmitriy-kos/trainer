@@ -11,7 +11,10 @@ html, body { background: #EFEFF4; min-height: 100vh; }
 body {
   font-family: -apple-system, system-ui, 'Helvetica Neue', Arial, sans-serif;
   color: #0B0B0F;
+  padding-top: env(safe-area-inset-top); /* viewport-fit=cover: контент не под статус-баром */
+  padding-bottom: 84px; /* компенсация фикс. панели вкладок, чтобы контент не прятался под ней */
 }
+body.no-tabbar { padding-bottom: 0; } /* панель скрыта в фокус-режимах (сессия/самочувствие/done/бег) */
 
 .wrap { max-width: 480px; margin: 0 auto; padding: 20px 16px 40px; }
 
@@ -24,6 +27,7 @@ body {
 .card.big .s { font-size: 15px; color: #8E8E93; font-weight: 600; }
 .card.accent { background: #0A84FF; color: #fff; }
 .card.accent .s { color: #cfe4ff; }
+.card.accent .history-sub { color: #cfe4ff; }
 
 .card-btn { border: 0; font: inherit; text-align: left; width: 100%; cursor: pointer; color: inherit; }
 
@@ -79,5 +83,28 @@ p { color: #8E8E93; font-size: 15px; line-height: 1.4; }
 .bar-fill.accent { background: #0A84FF; }
 .bar-fill.over { background: #FF3B30; }
 
-/* Значок версии приложения — едва заметный, не перехватывает тапы (заказ CEO 09.07.2026). */
-.app-version { position: fixed; left: 8px; bottom: 4px; font-size: 10px; color: rgba(60,60,67,.3); pointer-events: none; user-select: none; }
+/* Нижняя панель вкладок (дизайн_v7_хаб_и_взвешивание.md, раздел 1). Видна на
+   экранах-разделах (today/workout/food/weights/history), скрыта в фокус-режимах —
+   управляется через showScreen()/body.no-tabbar в screens.js. */
+#tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  display: flex;
+  background: rgba(255, 255, 255, .92);
+  border-top: 1px solid rgba(60, 60, 67, .12);
+  padding: 8px 4px calc(10px + env(safe-area-inset-bottom));
+  z-index: 10;
+}
+.tab {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  border: 0; background: none; font: inherit; cursor: pointer;
+  color: #8E8E93; font-size: 11px; font-weight: 600;
+  padding: 4px 0;
+}
+.tab .i { font-size: 24px; line-height: 1; }
+.tab.on { color: #0A84FF; }
+
+/* Значок версии приложения — едва заметный, не перехватывает тапы (заказ CEO 09.07.2026).
+   Поднят над панелью вкладок; когда панель скрыта (body.no-tabbar) — возвращается вниз. */
+.app-version { position: fixed; left: 8px; bottom: calc(72px + env(safe-area-inset-bottom)); font-size: 10px; color: rgba(60,60,67,.3); pointer-events: none; user-select: none; }
+body.no-tabbar .app-version { bottom: calc(4px + env(safe-area-inset-bottom)); }

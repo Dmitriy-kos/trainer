@@ -7,8 +7,9 @@ import { parseSetInput, formatLastSets, schemeTargetReps, latestCacheVersion } f
 import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS } from "../core/plan.js";
 import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
+import { latestWeigh, weighDeltas, sortedByDateDesc, daysSince } from "../core/weigh.js";
 import { DEFAULT_GOALS, dayTotals, scalePortion } from "../core/food.js";
-import { recognizeFood } from "../core/claude.js";
+import { recognizeFood, recognizeWeights } from "../core/claude.js";
 import { compressImage } from "./image.js";
 import * as screens from "./screens.js";
 
@@ -36,6 +37,9 @@ const state = {
   foodTextOpen: false,
   foodSettingsOpen: false,
   foodBusy: false,       // идёт распознавание (спиннер)
+  weights: [],           // записи взвешивания (все даты), зеркало store — читается в init()
+  weighDraft: null,      // черновик карточки взвешивания: {weight, fatPct, muscleKg, source, editingId|null}
+  weighBusy: false,      // идёт распознавание скрина весов (спиннер)
 };
 
 function pluralRu(n, one, few, many) {
@@ -74,6 +78,7 @@ function goToday() {
   stopTimer(false);
   state.session = null;
   screens.showScreen("today");
+  screens.renderTabbar("today");
   renderTodayScreen();
 }
 
@@ -81,6 +86,31 @@ function pullupMaxTileLabel() {
   return state.pullupMax
     ? `${state.pullupMax.value} (обновлён ${state.pullupMax.date}) · тап — изменить`
     : "не задан · тап — ввести";
+}
+
+// Число в русском виде («84,6», а не «84.6») — весь модуль «Взвешивание»
+// хранит десятичные значения через точку (JS Number), на экране — запятая.
+function numRu(x) {
+  return String(x).replace(".", ",");
+}
+
+// Подзаголовок плитки «⚖️ Взвешивание» на хабе + признак «нужен акцент»
+// (дизайн_v7, раздел 2 «Напоминание»): по понедельникам без сегодняшнего
+// замера плитка акцентная; иначе — последний замер, при простое ≥8 дней —
+// приписка «N дн. назад».
+function weightsHubVm(today, weekday) {
+  const latest = latestWeigh(state.weights);
+  const hasTodayEntry = state.weights.some((w) => w.date === today);
+  if (weekday === 0 && !hasTodayEntry) {
+    const lastPart = latest ? ` · последний: ${numRu(latest.weight)} кг` : "";
+    return { weightsSub: `Понедельник — день замера ⚖️${lastPart}`, weightsAccent: true };
+  }
+  if (!latest) return { weightsSub: "замеров ещё нет", weightsAccent: false };
+  let sub = `${numRu(latest.weight)} кг`;
+  if (latest.fatPct != null) sub += ` · жир ${numRu(latest.fatPct)}%`;
+  const since = daysSince(latest.date, today);
+  if (since >= 8) sub += ` · ${since} дн. назад`;
+  return { weightsSub: sub, weightsAccent: false };
 }
 
 function renderTodayScreen() {
@@ -102,23 +132,65 @@ function renderTodayScreen() {
     resumeLabel = `Продолжить: ${label} от ${unfinished.date} (упражнение ${n}/${total})`;
   }
 
+  const br = backupReminder(state.lastBackupDate, today, state.sessions.length > 0);
+  const backupLabel = br ? (br.days == null ? "⚠️ Сделай резервную копию истории" : `⚠️ Копию не делал ${br.days} дн.`) : null;
+
+  const dayLabel = todayDay ? `Силовая ${todayDay}` : "Бег/отдых";
+  const pullupN = state.pullupMax ? state.pullupMax.value : "—";
+  const workoutSub = `по плану: ${dayLabel} · макс подтягиваний ${pullupN}`;
+  const { weightsSub, weightsAccent } = weightsHubVm(today, weekday);
+
+  screens.renderToday({
+    hint,
+    weekLabel: `Месяц ${number} · ${program.weekLabels[week]}`,
+    resumeLabel,
+    backupLabel,
+    workoutSub,
+    weightsSub,
+    weightsAccent,
+  });
+  screens.renderFoodTile(foodTileLabel());
+}
+
+// ---------- Экран «Тренировка» ----------
+
+function goWorkout() {
+  screens.showScreen("workout");
+  screens.renderTabbar("workout");
+  renderWorkoutScreen();
+}
+
+function renderWorkoutScreen() {
+  screens.showWorkoutError("");
+  const weekday = todayWeekday();
+  const today = todayStr();
+  const { number, week } = programForDate(state.programStart, today);
+  const program = programByNumber(number);
+  const hint = programWeekdayHint(program, weekday);
+  const todayDay = programDayForWeekday(program, weekday);
+  const unfinished = unfinishedSession(state.sessions);
+
+  let resumeLabel = null;
+  if (unfinished) {
+    const plan = planForSession(unfinished);
+    const total = plan ? plan.length : 0;
+    const n = Math.min(unfinished.progressIdx + 1, total);
+    const label = unfinished.day === "T" ? "Замеры" : `Силовая ${unfinished.day}`;
+    resumeLabel = `Продолжить: ${label} от ${unfinished.date} (упражнение ${n}/${total})`;
+  }
+
   const mt = measureTile(state.programStart, today, state.sessions);
   const measureLabel = mt ? "Замеры 📏 — рабочие максимумы месяца" : null;
   state.measureProgram = mt ? mt.programNumber : null;
 
-  const br = backupReminder(state.lastBackupDate, today, state.sessions.length > 0);
-  const backupLabel = br ? (br.days == null ? "⚠️ Сделай резервную копию истории" : `⚠️ Копию не делал ${br.days} дн.`) : null;
-
-  screens.renderToday({
+  screens.renderWorkout({
     hint,
     weekLabel: `Месяц ${number} · ${program.weekLabels[week]}`,
     todayDay,
     resumeLabel,
     measureLabel,
-    backupLabel,
     pullupLabel: pullupMaxTileLabel(),
   });
-  screens.renderFoodTile(foodTileLabel());
 }
 
 function onResume() {
@@ -127,11 +199,202 @@ function onResume() {
   openSessionFlow(s);
 }
 
+// ---------- Экран «Взвешивание» ----------
+// Скрин весов → распознавание Claude → карточка-черновик → запись; ручной
+// ввод; правка/удаление по тапу на запись (дизайн_v7_хаб_и_взвешивание.md).
+
+function goWeights() {
+  state.weighDraft = null;
+  screens.showScreen("weights");
+  screens.renderTabbar("weights");
+  renderWeightsScreen();
+}
+
+// "2026-07-06" → "06.07" (день.месяц, как принято в устной речи — не ISO).
+function formatDateShort(dateISO) {
+  const [, mm, dd] = dateISO.split("-");
+  return `${dd}.${mm}`;
+}
+
+function weighDeltaText(delta) {
+  if (delta == null) return null;
+  const sign = delta > 0 ? "+" : delta < 0 ? "−" : "±";
+  return `Δ ${sign}${numRu(Math.abs(delta))} кг`;
+}
+
+function buildWeightsVm() {
+  const sorted = sortedByDateDesc(state.weights);
+  const latestEntry = sorted[0] ?? null;
+
+  let latest = null;
+  if (latestEntry) {
+    const parts = [];
+    if (latestEntry.fatPct != null) parts.push(`жир ${numRu(latestEntry.fatPct)}%`);
+    if (latestEntry.muscleKg != null) parts.push(`мышцы ${numRu(latestEntry.muscleKg)} кг`);
+    const overallDelta = weighDeltas(state.weights);
+    const deltaText = overallDelta ? weighDeltaText(overallDelta.weight) : null;
+    if (deltaText) parts.push(deltaText);
+    latest = { value: `${numRu(latestEntry.weight)} кг`, sub: parts.join(" · ") || "первый замер" };
+  }
+
+  // Дельта каждой записи — к предыдущей ПО ДАТЕ (следующий элемент в
+  // sortedByDateDesc, т.к. сортировка от новых к старым).
+  const entries = sorted.map((e, i) => {
+    const prev = sorted[i + 1] ?? null;
+    const delta = prev ? Math.round((e.weight - prev.weight) * 10) / 10 : null;
+    const subParts = [];
+    if (e.fatPct != null) subParts.push(`жир ${numRu(e.fatPct)}%`);
+    const deltaText = weighDeltaText(delta);
+    if (deltaText) subParts.push(deltaText);
+    return { id: e.id, label: `${formatDateShort(e.date)} · ${numRu(e.weight)} кг`, sub: subParts.join(" · ") };
+  });
+
+  const draft = state.weighDraft ? {
+    weight: state.weighDraft.weight ?? "",
+    fat: state.weighDraft.fatPct ?? "",
+    muscle: state.weighDraft.muscleKg ?? "",
+    isEdit: state.weighDraft.editingId != null,
+  } : null;
+
+  return { latest, draft, entries, busy: state.weighBusy, flash: consumeFlash() };
+}
+
+function renderWeightsScreen() {
+  screens.showWeightsError("");
+  screens.renderWeights(buildWeightsVm(), { onEntryTap: (id) => onWeighEntryTap(id) });
+}
+
+function onWeighEntryTap(id) {
+  const e = state.weights.find((x) => x.id === id);
+  if (!e) return;
+  state.weighDraft = { weight: e.weight, fatPct: e.fatPct, muscleKg: e.muscleKg, source: e.source, editingId: id };
+  renderWeightsScreen();
+}
+
+function onWeighManual() {
+  state.weighDraft = { weight: null, fatPct: null, muscleKg: null, source: "manual", editingId: null };
+  renderWeightsScreen();
+}
+
+function onWeighScreenBtn() {
+  if (!state.apiKey) {
+    screens.showWeightsError("Ключ API вводится в «Еда → ⚙️ Настройки еды» — один на всё приложение.");
+    return;
+  }
+  screens.showWeightsError("");
+  screens.openWeightsFilePicker();
+}
+
+function openWeighDraftFromRecognition(parsed) {
+  state.weighDraft = { weight: parsed.weight, fatPct: parsed.fatPct, muscleKg: parsed.muscleKg, source: "screen", editingId: null };
+  state.weighBusy = false;
+  renderWeightsScreen();
+}
+
+async function onWeighFilePicked(file) {
+  if (!file) return;
+  let image;
+  try {
+    image = await compressImage(file);
+  } catch (e) {
+    screens.showWeightsError(e.message);
+    return;
+  }
+  state.weighBusy = true;
+  screens.showWeightsError("");
+  renderWeightsScreen();
+  try {
+    const parsed = await recognizeWeights({ apiKey: state.apiKey, image });
+    openWeighDraftFromRecognition(parsed);
+  } catch (e) {
+    state.weighBusy = false;
+    renderWeightsScreen();
+    screens.showWeightsError(e.offline ? "Нет связи — попробуй позже или введи вручную." : e.message);
+  }
+}
+
+// Валидация как в readDraftFields еды: пробел не должен молча пройти через
+// Number(" ") === 0 — сначала trim-проверка на пустоту, потом парсинг.
+function readWeighDraftFields() {
+  const f = screens.getWeightsDraft();
+  if (String(f.weight).trim() === "") {
+    screens.showWeightsError("Введи вес.");
+    return null;
+  }
+  const weight = Math.round(Number(f.weight) * 10) / 10;
+  if (!Number.isFinite(weight) || weight <= 0 || weight > 400) {
+    screens.showWeightsError("Вес должен быть числом больше 0 и не больше 400 кг.");
+    return null;
+  }
+  const fatRaw = String(f.fat).trim();
+  const fatPct = fatRaw === "" ? null : Math.round(Number(f.fat) * 10) / 10;
+  if (fatRaw !== "" && !Number.isFinite(fatPct)) {
+    screens.showWeightsError("Процент жира должен быть числом.");
+    return null;
+  }
+  const muscleRaw = String(f.muscle).trim();
+  const muscleKg = muscleRaw === "" ? null : Math.round(Number(f.muscle) * 10) / 10;
+  if (muscleRaw !== "" && !Number.isFinite(muscleKg)) {
+    screens.showWeightsError("Мышечная масса должна быть числом.");
+    return null;
+  }
+  return { weight, fatPct, muscleKg };
+}
+
+async function onWeighDraftSave() {
+  if (!state.weighDraft) return;
+  const fields = readWeighDraftFields();
+  if (!fields) return;
+  screens.showWeightsError("");
+  const d = state.weighDraft;
+  const today = todayStr();
+
+  if (d.editingId != null) {
+    const old = state.weights.find((x) => x.id === d.editingId);
+    const updated = { ...old, ...fields };
+    await store.updateWeigh(updated);
+    state.weights = state.weights.map((x) => (x.id === updated.id ? updated : x));
+  } else {
+    // Одна запись на дату: повторный замер за сегодня заменяет существующий
+    // после подтверждения, вместо второй строки в списке.
+    const existing = state.weights.find((x) => x.date === today);
+    if (existing) {
+      if (!confirm("Замер за сегодня уже есть — заменить?")) return;
+      const updated = { ...existing, ...fields, source: d.source };
+      await store.updateWeigh(updated);
+      state.weights = state.weights.map((x) => (x.id === updated.id ? updated : x));
+    } else {
+      const rec = { date: today, ...fields, source: d.source };
+      const id = await store.addWeigh(rec);
+      state.weights.push({ id, ...rec });
+    }
+  }
+  state.weighDraft = null;
+  state.flash = { icon: "⚖️", text: "Записано", danger: false };
+  renderWeightsScreen();
+}
+
+async function onWeighDraftDelete() {
+  if (!state.weighDraft || state.weighDraft.editingId == null) return;
+  await store.deleteWeigh(state.weighDraft.editingId);
+  state.weights = state.weights.filter((x) => x.id !== state.weighDraft.editingId);
+  state.weighDraft = null;
+  state.flash = { icon: "🗑", text: "Удалено", danger: false };
+  renderWeightsScreen();
+}
+
+function onWeighDraftCancel() {
+  state.weighDraft = null;
+  screens.showWeightsError("");
+  renderWeightsScreen();
+}
+
 function goHistory() {
   state.historyExpandedId = null;
   state.historyEdit = null;
   screens.showHistoryError("");
   screens.showScreen("history");
+  screens.renderTabbar(null);
   renderHistoryScreen();
 }
 
@@ -292,8 +555,8 @@ async function onPullupMaxTap() {
   if (await askPullupMax(screens.showSessionError)) screens.renderSession(buildSessionVm());
 }
 
-async function onTodayPullupTap() {
-  if (await askPullupMax(screens.showTodayError)) renderTodayScreen();
+async function onWorkoutPullupTap() {
+  if (await askPullupMax(screens.showWorkoutError)) renderWorkoutScreen();
 }
 
 async function replaceCurrent(rows) {
@@ -438,6 +701,7 @@ function goFood() {
   state.foodSettingsOpen = false;
   screens.showFoodError("");
   screens.showScreen("food");
+  screens.renderTabbar("food");
   renderFoodScreen();
 }
 
@@ -749,7 +1013,7 @@ async function onExport() {
     const backup = buildBackup(state.programStart, state.sessions, state.sets, {
       pullupMax: state.pullupMax ?? null,
       lastBackupDate: todayStr(),
-    }, state.food);
+    }, state.food, state.weights);
     const json = JSON.stringify(backup, null, 2);
     screens.downloadFile(`trainer-backup-${todayStr()}.json`, json, "application/json;charset=utf-8");
     await store.setMeta("lastBackupDate", todayStr());
@@ -800,6 +1064,7 @@ async function onImportPick(file) {
         lastBackupDate: backup.meta.lastBackupDate,
       },
       food: backup.food,
+      weights: backup.weights,
     });
     // clearAll() стёр ВЕСЬ meta-store, включая настройки устройства (ключ API,
     // цели еды), которых в файле бэкапа нет и не должно быть. Пересеиваем их
@@ -810,6 +1075,7 @@ async function onImportPick(file) {
     state.sessions = await store.getAllSessions();
     state.sets = await store.getAllSets();
     state.food = await store.getAllFood();
+    state.weights = await store.getAllWeights();
     state.programStart = backup.meta.programStart;
     state.pullupMax = backup.meta.pullupMax;
     state.lastBackupDate = backup.meta.lastBackupDate;
@@ -932,6 +1198,40 @@ function renderDemoFood() {
   }, { onEntryTap: () => {} });
 }
 
+// Демо для скриншотов Шага 7 (вёрстка v7: хаб-плитки, экран «Взвешивание»).
+// Без записи в БД — фикстуры прямо во view-model, как в остальных renderDemo*.
+
+function renderDemoWeights() {
+  screens.showScreen("weights");
+  screens.renderTabbar("weights");
+  screens.renderWeights({
+    latest: { value: "84,6 кг", sub: "жир 24,9% · мышцы 59,7 кг · −0,4 кг за неделю" },
+    draft: { weight: 84.6, fat: 24.9, muscle: 59.7, isEdit: false },
+    entries: [
+      { id: 3, label: "2026-07-08 · 84,6 кг", sub: "жир 24,9% · Δ −0,4 кг" },
+      { id: 2, label: "2026-07-01 · 85,0 кг", sub: "жир 25,3% · Δ −0,3 кг" },
+      { id: 1, label: "2026-06-24 · 85,3 кг", sub: "жир 25,6%" },
+    ],
+    busy: false,
+    flash: null,
+  }, { onEntryTap: () => {} });
+}
+
+function renderDemoHub() {
+  screens.showScreen("today");
+  screens.renderTabbar("today");
+  screens.renderToday({
+    hint: "Сегодня силовая C 💪",
+    weekLabel: "Месяц 2 · Неделя 3",
+    resumeLabel: "Продолжить: Силовая B от 2026-07-08 (упражнение 3/5)",
+    backupLabel: "⚠️ Копию не делал 12 дн.",
+    workoutSub: "по плану: Силовая C · макс подтягиваний 7",
+    weightsSub: "Понедельник — день замера ⚖️",
+    weightsAccent: true,
+  });
+  screens.renderFoodTile("Еда 🍽 1450 / 2250 ккал · белок 96 / 160 г");
+}
+
 // ---------- Инициализация ----------
 
 // Гвард от двойного тапа: пока асинхронное действие пишет в store, повторные
@@ -949,12 +1249,24 @@ function bindEvents() {
   screens.on("btn-day-b", "click", () => guarded(() => onStartStrength("B")));
   screens.on("btn-day-c", "click", () => guarded(() => onStartStrength("C")));
   screens.on("btn-run", "click", () => guarded(onStartRun));
-  screens.on("btn-history", "click", goHistory);
   screens.on("btn-history-back", "click", goToday);
   screens.on("resume-tile", "click", onResume);
-  screens.on("measure-tile", "click", () => guarded(() => onStartStrength("T")));
   screens.on("backup-tile", "click", goHistory);
-  screens.on("today-pullup-tile", "click", () => guarded(onTodayPullupTap));
+
+  // Вкладки нижней панели + плитки-разделы хаба.
+  screens.on("tab-today", "click", goToday);
+  screens.on("tab-workout", "click", goWorkout);
+  screens.on("tab-food", "click", goFood);
+  screens.on("tab-weights", "click", goWeights);
+  screens.on("hub-workout-tile", "click", goWorkout);
+  screens.on("hub-weights-tile", "click", goWeights);
+  screens.on("hub-history-tile", "click", goHistory);
+
+  // Экран «Тренировка» — те же обработчики, что раньше висели на today
+  // (measure-tile/today-pullup-tile), перевешаны на переехавшие id.
+  screens.on("workout-measure-tile", "click", () => guarded(() => onStartStrength("T")));
+  screens.on("workout-pullup-tile", "click", () => guarded(onWorkoutPullupTap));
+  screens.on("workout-resume-tile", "click", onResume);
 
   screens.on("history-export", "click", () => guarded(onExport));
   screens.on("history-import", "click", screens.openFilePicker);
@@ -996,6 +1308,13 @@ function bindEvents() {
   screens.on("food-text-submit", "click", () => guarded(onFoodTextSubmit));
   screens.onInputEnter("food-text-input", () => guarded(onFoodTextSubmit));
   screens.on("food-pending-tile", "click", () => guarded(onFoodRetryPending));
+
+  screens.on("weights-screen-btn", "click", onWeighScreenBtn);
+  screens.on("weights-manual-btn", "click", onWeighManual);
+  screens.onWeightsFilePicked((file) => guarded(async () => { await onWeighFilePicked(file); screens.resetWeightsFileInput(); }));
+  screens.on("weights-draft-save", "click", () => guarded(onWeighDraftSave));
+  screens.on("weights-draft-delete", "click", () => guarded(onWeighDraftDelete));
+  screens.on("weights-draft-cancel", "click", onWeighDraftCancel);
 }
 
 async function init() {
@@ -1012,6 +1331,14 @@ async function init() {
   }
   if (params.get("screen") === "food-demo") {
     renderDemoFood();
+    return;
+  }
+  if (params.get("screen") === "weights-demo") {
+    renderDemoWeights();
+    return;
+  }
+  if (params.get("screen") === "hub-demo") {
+    renderDemoHub();
     return;
   }
 
@@ -1031,6 +1358,7 @@ async function init() {
   state.food = await store.getAllFood();
   state.sessions = await store.getAllSessions();
   state.sets = await store.getAllSets();
+  state.weights = await store.getAllWeights();
 
   goToday();
 

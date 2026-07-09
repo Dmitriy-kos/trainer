@@ -3,7 +3,7 @@
 // Без юнит-тестов (нет IndexedDB в Node) — проверяется в браузере.
 
 const DB_NAME = "trainer";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let db = null;
 
@@ -43,6 +43,8 @@ export function openDb() {
         d.createObjectStore("meta", { keyPath: "key" });
       if (!d.objectStoreNames.contains("food"))
         d.createObjectStore("food", { keyPath: "id", autoIncrement: true });
+      if (!d.objectStoreNames.contains("weights"))
+        d.createObjectStore("weights", { keyPath: "id", autoIncrement: true });
     };
     req.onsuccess = () => { db = req.result; resolve(); };
     req.onerror = () => reject(req.error);
@@ -83,22 +85,24 @@ export function setMeta(key, value) {
 }
 
 export async function clearAll() {
-  const t = requireDb().transaction(["sessions", "sets", "meta", "food"], "readwrite");
+  const t = requireDb().transaction(["sessions", "sets", "meta", "food", "weights"], "readwrite");
   t.objectStore("sessions").clear();
   t.objectStore("sets").clear();
   t.objectStore("meta").clear();
   t.objectStore("food").clear();
+  t.objectStore("weights").clear();
   await txDone(t);
 }
 
 // Восстановление из бэкапа (backup.js): пишет записи КАК ЕСТЬ, с их id —
 // put(), не add(), иначе автонумерация порвёт связи sessionId в sets.
-export async function bulkImport({ sessions, sets, meta, food }) {
-  const t = requireDb().transaction(["sessions", "sets", "meta", "food"], "readwrite");
+export async function bulkImport({ sessions, sets, meta, food, weights }) {
+  const t = requireDb().transaction(["sessions", "sets", "meta", "food", "weights"], "readwrite");
   for (const s of sessions || []) t.objectStore("sessions").put(s);
   for (const x of sets || []) t.objectStore("sets").put(x);
   for (const [key, value] of Object.entries(meta || {})) t.objectStore("meta").put({ key, value });
   for (const f of food || []) t.objectStore("food").put(f);
+  for (const w of weights || []) t.objectStore("weights").put(w);
   await txDone(t);
 }
 
@@ -138,4 +142,22 @@ export function deleteFood(id) {
 
 export function getAllFood() {
   return wrap(requireDb().transaction("food", "readonly").objectStore("food").getAll());
+}
+
+// ---------- Взвешивания (Шаг 7, дизайн_v7...) ----------
+
+export function addWeigh(entry) {
+  return wrap(requireDb().transaction("weights", "readwrite").objectStore("weights").add(entry));
+}
+
+export function updateWeigh(entry) {
+  return wrap(requireDb().transaction("weights", "readwrite").objectStore("weights").put(entry));
+}
+
+export function deleteWeigh(id) {
+  return wrap(requireDb().transaction("weights", "readwrite").objectStore("weights").delete(id));
+}
+
+export function getAllWeights() {
+  return wrap(requireDb().transaction("weights", "readonly").objectStore("weights").getAll());
 }

@@ -4,10 +4,26 @@
 
 const $ = (id) => document.getElementById(id);
 
-const SCREEN_IDS = ["today", "history", "session", "wellbeing", "done", "run", "food"];
+const SCREEN_IDS = ["today", "history", "session", "wellbeing", "done", "run", "food", "workout", "weights"];
+
+// Экраны-разделы: на них постоянно видна нижняя панель вкладок. Остальные —
+// фокус-режимы (сессия, самочувствие, done, бег) — панель прячут, чтобы
+// случайный тап не выбил из записи подхода (дизайн_v7, раздел 1).
+const TAB_SCREENS = ["today", "workout", "food", "weights", "history"];
 
 export function showScreen(name) {
   for (const s of SCREEN_IDS) $(`screen-${s}`).hidden = s !== name;
+  const isTabScreen = TAB_SCREENS.includes(name);
+  $("tabbar").hidden = !isTabScreen;
+  document.body.classList.toggle("no-tabbar", !isTabScreen);
+}
+
+// active: "today" | "workout" | "food" | "weights" | null (напр. на экране
+// «История» — она не вкладка, подсветки нет).
+export function renderTabbar(active) {
+  for (const t of ["today", "workout", "food", "weights"]) {
+    $(`tab-${t}`).classList.toggle("on", t === active);
+  }
 }
 
 export function on(id, event, handler) {
@@ -40,12 +56,11 @@ function renderFlash(el, flash) {
   el.classList.toggle("danger", !!flash.danger);
 }
 
-// ---------- Сегодня ----------
+// ---------- Сегодня (хаб) ----------
 
-export function renderToday({ hint, weekLabel, todayDay, resumeLabel, measureLabel, backupLabel, pullupLabel }) {
+export function renderToday({ hint, weekLabel, resumeLabel, backupLabel, workoutSub, weightsSub, weightsAccent }) {
   $("today-title").textContent = hint;
   $("today-week").textContent = weekLabel;
-  $("today-pullup-value").textContent = pullupLabel ?? "";
 
   const resumeTile = $("resume-tile");
   if (resumeLabel) {
@@ -56,13 +71,45 @@ export function renderToday({ hint, weekLabel, todayDay, resumeLabel, measureLab
     resumeTile.textContent = "";
   }
 
-  const measure = $("measure-tile");
-  measure.hidden = !measureLabel;
-  if (measureLabel) measure.textContent = measureLabel;
-
   const backup = $("backup-tile");
   backup.hidden = !backupLabel;
   if (backupLabel) backup.textContent = backupLabel;
+
+  $("hub-workout-sub").textContent = workoutSub ?? "";
+  $("hub-weights-sub").textContent = weightsSub ?? "";
+  $("hub-weights-tile").classList.toggle("accent", !!weightsAccent);
+}
+
+export function showTodayError(msg) {
+  const el = $("today-error");
+  if (msg) {
+    el.textContent = msg;
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+    el.textContent = "";
+  }
+}
+
+// ---------- Тренировка ----------
+
+export function renderWorkout({ hint, weekLabel, todayDay, resumeLabel, measureLabel, pullupLabel }) {
+  $("workout-title").textContent = hint;
+  $("workout-week").textContent = weekLabel;
+  $("workout-pullup-value").textContent = pullupLabel ?? "";
+
+  const resumeTile = $("workout-resume-tile");
+  if (resumeLabel) {
+    resumeTile.textContent = resumeLabel;
+    resumeTile.hidden = false;
+  } else {
+    resumeTile.hidden = true;
+    resumeTile.textContent = "";
+  }
+
+  const measure = $("workout-measure-tile");
+  measure.hidden = !measureLabel;
+  if (measureLabel) measure.textContent = measureLabel;
 
   for (const day of ["A", "B", "C"]) {
     $(`btn-day-${day.toLowerCase()}`).classList.toggle("btn-accent", todayDay === day);
@@ -70,8 +117,8 @@ export function renderToday({ hint, weekLabel, todayDay, resumeLabel, measureLab
   $("btn-run").classList.toggle("btn-accent", todayDay === null);
 }
 
-export function showTodayError(msg) {
-  const el = $("today-error");
+export function showWorkoutError(msg) {
+  const el = $("workout-error");
   if (msg) {
     el.textContent = msg;
     el.hidden = false;
@@ -454,3 +501,68 @@ export function onFoodFilePicked(handler) {
   $("food-file-input").addEventListener("change", (e) => handler(e.target.files[0] || null));
 }
 export function resetFoodFileInput() { $("food-file-input").value = ""; }
+
+// ---------- Взвешивание (дизайн_v7_хаб_и_взвешивание.md, раздел 2) ----------
+
+export function renderWeights(vm, handlers) {
+  const latestVal = $("weights-latest-value");
+  const latestSub = $("weights-latest-sub");
+  if (vm.latest) {
+    latestVal.textContent = vm.latest.value;
+    latestSub.textContent = vm.latest.sub;
+  } else {
+    latestVal.textContent = "—";
+    latestSub.textContent = "Замеров ещё нет";
+  }
+
+  $("weights-busy").hidden = !vm.busy;
+
+  const draft = $("weights-draft");
+  draft.hidden = !vm.draft;
+  if (vm.draft) {
+    $("weights-draft-weight").value = vm.draft.weight;
+    $("weights-draft-fat").value = vm.draft.fat;
+    $("weights-draft-muscle").value = vm.draft.muscle;
+    $("weights-draft-delete").hidden = !vm.draft.isEdit;
+  }
+
+  const list = $("weights-list");
+  list.textContent = "";
+  for (const e of vm.entries) {
+    const tile = document.createElement("button");
+    tile.type = "button";
+    tile.className = "card card-btn history-tile";
+    const title = document.createElement("div");
+    title.className = "history-title";
+    title.textContent = e.label;
+    tile.appendChild(title);
+    const sub = document.createElement("div");
+    sub.className = "history-sub";
+    sub.textContent = e.sub;
+    tile.appendChild(sub);
+    tile.addEventListener("click", () => handlers.onEntryTap(e.id));
+    list.appendChild(tile);
+  }
+
+  renderFlash($("weights-flash"), vm.flash);
+}
+
+export function getWeightsDraft() {
+  return {
+    weight: $("weights-draft-weight").value,
+    fat: $("weights-draft-fat").value,
+    muscle: $("weights-draft-muscle").value,
+  };
+}
+
+export function showWeightsError(msg) {
+  const el = $("weights-error");
+  el.textContent = msg || "";
+  el.hidden = !msg;
+}
+
+export function openWeightsFilePicker() { $("weights-file-input").click(); }
+export function onWeightsFilePicked(handler) {
+  $("weights-file-input").addEventListener("change", (e) => handler(e.target.files[0] || null));
+}
+export function resetWeightsFileInput() { $("weights-file-input").value = ""; }

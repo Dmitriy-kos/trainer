@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#EFEFF4">
 <title>Тренер</title>
 <link rel="stylesheet" href="style.css">
@@ -12,7 +12,7 @@
 <body>
 <div class="wrap">
 
-  <!-- Экран: Сегодня -->
+  <!-- Экран: Сегодня (хаб) -->
   <section id="screen-today">
     <div class="card big">
       <h1 id="today-title"></h1>
@@ -20,15 +20,42 @@
     </div>
 
     <button type="button" class="card accent card-btn" id="resume-tile" hidden></button>
-    <button type="button" class="card accent card-btn" id="measure-tile" hidden>Замеры 📏 — рабочие максимумы месяца</button>
     <button type="button" class="card card-btn" id="backup-tile" hidden></button>
+
+    <button type="button" class="card card-btn" id="hub-workout-tile">
+      <div class="history-title">🏋️ Тренировка</div>
+      <div class="history-sub" id="hub-workout-sub"></div>
+    </button>
+
     <button type="button" class="card card-btn" id="food-tile">Еда 🍽</button>
 
-    <button type="button" class="card mini card-btn" id="today-pullup-tile">
-      <div class="l">Максимум подтягиваний</div>
-      <div class="v" id="today-pullup-value"></div>
+    <button type="button" class="card card-btn" id="hub-weights-tile">
+      <div class="history-title">⚖️ Взвешивание</div>
+      <div class="history-sub" id="hub-weights-sub"></div>
     </button>
+
+    <button type="button" class="card card-btn" id="hub-history-tile">
+      <div class="history-title">🕓 История</div>
+    </button>
+
     <div class="error" id="today-error" hidden></div>
+  </section>
+
+  <!-- Экран: Тренировка -->
+  <section id="screen-workout" hidden>
+    <div class="card big">
+      <h1 id="workout-title"></h1>
+      <div class="s" id="workout-week"></div>
+    </div>
+
+    <button type="button" class="card accent card-btn" id="workout-resume-tile" hidden></button>
+    <button type="button" class="card accent card-btn" id="workout-measure-tile" hidden>Замеры 📏 — рабочие максимумы месяца</button>
+
+    <button type="button" class="card mini card-btn" id="workout-pullup-tile">
+      <div class="l">Максимум подтягиваний</div>
+      <div class="v" id="workout-pullup-value"></div>
+    </button>
+    <div class="error" id="workout-error" hidden></div>
 
     <div class="grid grid2">
       <button type="button" class="btn" id="btn-day-a">Силовая A</button>
@@ -36,7 +63,6 @@
       <button type="button" class="btn" id="btn-day-c">Силовая C</button>
       <button type="button" class="btn" id="btn-run">Бег 🏃</button>
     </div>
-    <button type="button" class="btn btn-wide" id="btn-history">История</button>
   </section>
 
   <!-- Экран: История -->
@@ -217,7 +243,53 @@
     <button type="button" class="btn btn-wide" id="food-back">← Сегодня</button>
   </section>
 
+  <!-- Экран: Взвешивание (дизайн_v7_хаб_и_взвешивание.md, раздел 2) -->
+  <section id="screen-weights" hidden>
+    <div class="hd"><span class="step">Взвешивание</span></div>
+
+    <div class="card flash" id="weights-flash" hidden></div>
+
+    <div class="card big">
+      <h1 id="weights-latest-value"></h1>
+      <div class="s" id="weights-latest-sub"></div>
+    </div>
+
+    <div class="card mini" id="weights-busy" hidden><div class="v">Распознаю… ⏳</div></div>
+
+    <div class="card" id="weights-draft" hidden>
+      <div class="l">Проверь и запиши</div>
+      <div class="input-row">
+        <input type="number" inputmode="decimal" id="weights-draft-weight" placeholder="вес, кг">
+      </div>
+      <div class="input-row">
+        <input type="number" inputmode="decimal" id="weights-draft-fat" placeholder="жир, %">
+        <input type="number" inputmode="decimal" id="weights-draft-muscle" placeholder="мышцы, кг">
+      </div>
+      <div class="grid grid2">
+        <button type="button" class="btn btn-accent" id="weights-draft-save">Записать</button>
+        <button type="button" class="btn" id="weights-draft-cancel">Отмена</button>
+      </div>
+      <button type="button" class="btn btn-wide btn-danger" id="weights-draft-delete" hidden>Удалить запись</button>
+    </div>
+
+    <div id="weights-list"></div>
+
+    <div class="grid grid2">
+      <button type="button" class="btn btn-accent" id="weights-screen-btn">📷 Скрин весов</button>
+      <button type="button" class="btn" id="weights-manual-btn">✍️ Вручную</button>
+    </div>
+    <input type="file" id="weights-file-input" accept="image/*" hidden>
+
+    <div class="error" id="weights-error" hidden></div>
+  </section>
+
 </div>
+<nav id="tabbar">
+  <button type="button" class="tab" id="tab-today"><span class="i">🏠</span>Сегодня</button>
+  <button type="button" class="tab" id="tab-workout"><span class="i">🏋️</span>Тренировка</button>
+  <button type="button" class="tab" id="tab-food"><span class="i">🍽</span>Еда</button>
+  <button type="button" class="tab" id="tab-weights"><span class="i">⚖️</span>Вес</button>
+</nav>
 <div id="app-version" class="app-version" hidden></div>
 <script type="module" src="ui/app.js"></script>
 <script>
