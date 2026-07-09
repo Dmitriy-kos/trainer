@@ -655,6 +655,7 @@ function buildHistoryItemVm(session) {
     expanded: state.historyExpandedId === session.id,
     editExercise: state.historyEdit && state.historyEdit.sessionId === session.id ? state.historyEdit.exercise : null,
     noSets,
+    canDelete: noSets && session.status !== "done",
     lines,
   };
 }
@@ -672,6 +673,7 @@ function renderHistoryScreen() {
     onEditOpen: onHistoryEditOpen,
     onEditCancel: onHistoryEditCancel,
     onEditSubmit: (t) => guarded(() => onHistoryEditSubmit(t)),
+    onDeleteSession: (id) => guarded(() => onHistoryDeleteSession(id)),
   });
 }
 
@@ -720,6 +722,25 @@ async function onHistoryEditSubmit(text) {
   renderHistoryScreen();
 }
 
+// Удаление пустой (без подходов) незавершённой сессии из Истории — уборка
+// «мусорных» open-сессий, оставшихся от тапа по «Силовая X» до появления
+// «← выйти». Разрешено только для noSets && status !== "done" (canDelete
+// в buildHistoryItemVm) — экран не показывает кнопку для остальных случаев,
+// но проверяем и здесь на случай прямого вызова.
+async function onHistoryDeleteSession(sessionId) {
+  const session = state.sessions.find((s) => s.id === sessionId);
+  if (!session) return;
+  const { noSets } = groupSessionSets(session, state.sets, planForSession(session));
+  if (!noSets || session.status === "done") return;
+  if (!confirm("Удалить пустую сессию?")) return;
+  await store.deleteSession(sessionId);
+  state.sessions = state.sessions.filter((s) => s.id !== sessionId);
+  if (state.historyExpandedId === sessionId) state.historyExpandedId = null;
+  if (state.historyEdit && state.historyEdit.sessionId === sessionId) state.historyEdit = null;
+  state.flash = { icon: "🗑", text: "Удалено", danger: false };
+  renderHistoryScreen();
+}
+
 // ---------- Бэкап ----------
 
 async function onExport() {
@@ -730,7 +751,7 @@ async function onExport() {
       lastBackupDate: todayStr(),
     }, state.food);
     const json = JSON.stringify(backup, null, 2);
-    screens.downloadFile(`trainer-backup-${todayStr()}.json`, json, "application/json");
+    screens.downloadFile(`trainer-backup-${todayStr()}.json`, json, "application/json;charset=utf-8");
     await store.setMeta("lastBackupDate", todayStr());
     state.lastBackupDate = todayStr();
   } catch {

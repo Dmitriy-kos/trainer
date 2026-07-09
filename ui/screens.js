@@ -112,6 +112,17 @@ function renderHistoryItem(list, item, handlers) {
       empty.className = "note";
       empty.textContent = "подходов нет";
       details.appendChild(empty);
+      if (item.canDelete) {
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "btn btn-danger";
+        del.textContent = "🗑 Удалить пустую сессию";
+        del.addEventListener("click", (e) => {
+          e.stopPropagation();
+          handlers.onDeleteSession(item.id);
+        });
+        details.appendChild(del);
+      }
     } else {
       for (const line of item.lines) {
         const row = document.createElement("div");
