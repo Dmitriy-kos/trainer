@@ -3,7 +3,7 @@
 
 import * as store from "../core/store.js";
 import { autoregulationHint, overtrainingAlert, programForDate, measureTile, pullupDayScheme, restRemaining, formatRest, backupReminder } from "../core/logic.js";
-import { parseSetInput, formatLastSets, schemeTargetReps } from "../core/format.js";
+import { parseSetInput, formatLastSets, schemeTargetReps, latestCacheVersion } from "../core/format.js";
 import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS } from "../core/plan.js";
 import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
@@ -1033,6 +1033,15 @@ async function init() {
   state.sets = await store.getAllSets();
 
   goToday();
+
+  if ("caches" in window) {
+    try {
+      const v = latestCacheVersion(await caches.keys());
+      screens.renderVersion(v);
+    } catch {
+      // Не удалось определить версию кэша — просто не показываем значок.
+    }
+  }
 }
 
 init();

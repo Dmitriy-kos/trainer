@@ -40,6 +40,19 @@ export function parseSetInput(text) {
   return groups.flatMap((g) => parseGroup(g, text));
 }
 
+// Показываем не константу из кода, а фактическую версию офлайн-кэша — так
+// индикатор не может врать: он ровно тот кэш, из которого приложение живёт офлайн.
+export function latestCacheVersion(keys) {
+  let max = null;
+  for (const key of keys ?? []) {
+    const m = /^trainer-v(\d+)$/.exec(key);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    if (max === null || n > max) max = n;
+  }
+  return max === null ? null : `v ${max}`;
+}
+
 export function schemeTargetReps(scheme) {
   const s = (scheme || "").toLowerCase().replaceAll("х", "x").replaceAll("×", "x");
   const xi = s.indexOf("x");

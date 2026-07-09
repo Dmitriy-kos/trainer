@@ -436,6 +436,19 @@ export function showFoodError(msg) {
   el.hidden = !msg;
 }
 
+// ---------- Версия приложения ----------
+
+export function renderVersion(text) {
+  const el = $("app-version");
+  if (text) {
+    el.textContent = text;
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+    el.textContent = "";
+  }
+}
+
 export function openFoodFilePicker() { $("food-file-input").click(); }
 export function onFoodFilePicked(handler) {
   $("food-file-input").addEventListener("change", (e) => handler(e.target.files[0] || null));
