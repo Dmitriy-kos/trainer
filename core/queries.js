@@ -7,7 +7,7 @@ export function newerFirst(a, b) {
 
 export function lastSets(sessions, sets, exercise) {
   const doneById = new Map(sessions.filter((s) => s.status === "done").map((s) => [s.id, s]));
-  const clean = sets.filter((x) => x.exercise === exercise && !x.painFlag && doneById.has(x.sessionId));
+  const clean = sets.filter((x) => x.exercise === exercise && !x.painFlag && !x.skipFlag && doneById.has(x.sessionId));
   if (clean.length === 0) return [];
   const latest = [...new Set(clean.map((x) => x.sessionId))]
     .map((id) => doneById.get(id)).sort(newerFirst)[0];
@@ -52,11 +52,45 @@ export function groupSessionSets(session, allSets, plan) {
   const lines = [];
   for (const exercise of order) {
     const exSets = sets.filter((x) => x.exercise === exercise).sort((a, b) => a.setIdx - b.setIdx);
-    const clean = exSets.filter((x) => !x.painFlag);
+    const clean = exSets.filter((x) => !x.painFlag && !x.skipFlag);
     const pain = exSets.filter((x) => x.painFlag);
-    if (exSets.length === 0) lines.push({ text: `${exercise}: пропущено`, pain: false, skipped: true, exercise });
+    const skipped = exSets.some((x) => x.skipFlag);
+    // Пропуск теперь помечается строкой в sets (Шаг 8). Старые сессии пропуск не
+    // помечали — там признак прежний: у упражнения плана нет ни одной строки.
+    if (exSets.length === 0 || skipped) lines.push({ text: `${exercise}: пропущено`, pain: false, skipped: true, exercise });
     if (clean.length > 0) lines.push({ text: `${exercise}: ${formatLastSets(clean)}`, pain: false, skipped: false, exercise });
     if (pain.length > 0) lines.push({ text: `${exercise}: 🚑 больно`, pain: true, skipped: false, exercise });
   }
   return { noSets: false, lines };
+}
+
+// Статус упражнения в сессии выводится из самих записей, а не из счётчика
+// (Шаг 8: порядок упражнений свободный, счётчик progressIdx стал курсором).
+// Приоритет: боль → пропуск → записано → не записано.
+export function exerciseStatus(sets, sessionId, exercise) {
+  const rows = sets.filter((x) => x.sessionId === sessionId && x.exercise === exercise);
+  if (rows.length === 0) return "todo";
+  if (rows.some((x) => x.painFlag)) return "pain";
+  if (rows.some((x) => x.skipFlag)) return "skipped";
+  return "done";
+}
+
+// exercises — элементы плана дня ({exercise, orderIdx, …}) в порядке показа.
+export function sessionStatuses(sets, sessionId, exercises) {
+  return exercises.map((it) => exerciseStatus(sets, sessionId, it.exercise));
+}
+
+export function sessionRemaining(sets, sessionId, exercises) {
+  return sessionStatuses(sets, sessionId, exercises).filter((s) => s === "todo").length;
+}
+
+// Ближайшее незакрытое упражнение после fromIdx, по кругу (занятый станок:
+// перепрыгнули присед — вернёмся к нему, когда всё остальное закрыто).
+export function nextTodoIdx(sets, sessionId, exercises, fromIdx) {
+  const n = exercises.length;
+  for (let k = 1; k <= n; k++) {
+    const i = (fromIdx + k) % n;
+    if (exerciseStatus(sets, sessionId, exercises[i].exercise) === "todo") return i;
+  }
+  return null;
 }

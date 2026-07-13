@@ -5,7 +5,7 @@ import * as store from "../core/store.js";
 import { autoregulationHint, overtrainingAlert, programForDate, measureTile, pullupDayScheme, restRemaining, formatRest, backupReminder } from "../core/logic.js";
 import { parseSetInput, formatLastSets, schemeTargetReps, latestCacheVersion } from "../core/format.js";
 import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS } from "../core/plan.js";
-import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets } from "../core/queries.js";
+import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
 import { latestWeigh, weighDeltas, sortedByDateDesc, daysSince } from "../core/weigh.js";
 import { DEFAULT_GOALS, dayTotals, scalePortion } from "../core/food.js";
@@ -21,7 +21,7 @@ const state = {
   programStart: DEFAULT_PROGRAM_START,
   session: null,       // текущая открытая силовая сессия (в памяти, синхронно с store)
   exercises: [],        // planForSession(session), отсортировано по orderIdx
-  viewIdx: null,          // индекс просматриваемого упражнения при навигации ←/→; null = обычный ввод текущего
+  cursorIdx: 0,          // какое упражнение сессии сейчас на экране (Шаг 8: порядок свободный)
   flash: null,           // {icon, text, danger} | null — плитка, показывается один раз
   runSession: null,       // сессия только что записанного бега, пока открыт экран деталей
   historyExpandedId: null, // id сессии, чьи подходы сейчас раскрыты в Истории (одна за раз)
@@ -127,9 +127,11 @@ function renderTodayScreen() {
   if (unfinished) {
     const plan = planForSession(unfinished);
     const total = plan ? plan.length : 0;
-    const n = Math.min(unfinished.progressIdx + 1, total);
+    // Шаг 8: порядок свободный — считаем незакрытые по данным, а не по progressIdx
+    // (он теперь курсор «где я», а не счётчик «сколько сделано»).
+    const remaining = plan ? sessionRemaining(state.sets, unfinished.id, plan) : 0;
     const label = unfinished.day === "T" ? "Замеры" : `Силовая ${unfinished.day}`;
-    resumeLabel = `Продолжить: ${label} от ${unfinished.date} (упражнение ${n}/${total})`;
+    resumeLabel = `Продолжить: ${label} от ${unfinished.date} (осталось ${remaining} из ${total})`;
   }
 
   const br = backupReminder(state.lastBackupDate, today, state.sessions.length > 0);
@@ -174,9 +176,11 @@ function renderWorkoutScreen() {
   if (unfinished) {
     const plan = planForSession(unfinished);
     const total = plan ? plan.length : 0;
-    const n = Math.min(unfinished.progressIdx + 1, total);
+    // Шаг 8: порядок свободный — считаем незакрытые по данным, а не по progressIdx
+    // (он теперь курсор «где я», а не счётчик «сколько сделано»).
+    const remaining = plan ? sessionRemaining(state.sets, unfinished.id, plan) : 0;
     const label = unfinished.day === "T" ? "Замеры" : `Силовая ${unfinished.day}`;
-    resumeLabel = `Продолжить: ${label} от ${unfinished.date} (упражнение ${n}/${total})`;
+    resumeLabel = `Продолжить: ${label} от ${unfinished.date} (осталось ${remaining} из ${total})`;
   }
 
   const mt = measureTile(state.programStart, today, state.sessions);
@@ -193,10 +197,12 @@ function renderWorkoutScreen() {
   });
 }
 
-function onResume() {
+// openSessionFlow стал async (нормализация старых пропусков пишет в БД) —
+// поэтому и «Продолжить» теперь async и вешается через guarded.
+async function onResume() {
   const s = unfinishedSession(state.sessions);
   if (!s) return;
-  openSessionFlow(s);
+  await openSessionFlow(s);
 }
 
 // ---------- Экран «Взвешивание» ----------
@@ -408,44 +414,121 @@ async function onStartStrength(day) {
   const id = await store.addSession(session);
   const withId = { ...session, id };
   state.sessions.push(withId);
-  openSessionFlow(withId);
+  await openSessionFlow(withId);
 }
 
-function openSessionFlow(session) {
-  state.session = session;
-  state.viewIdx = null;
-  state.exercises = (planForSession(session) ?? []).slice().sort((a, b) => a.orderIdx - b.orderIdx);
-  if (session.progressIdx >= state.exercises.length) {
-    // Все 5 упражнений уже отмечены, самочувствие ещё не спросили (сессия
-    // осталась open) — типичный «закрыли приложение между последним
-    // подходом и экраном самочувствия».
-    goWellbeing();
-  } else {
-    screens.showScreen("session");
-    screens.renderSession(buildSessionVm());
+// Строка-пометка «пропущено»: живёт в таблице подходов рядом с пометкой боли.
+// Именно она отличает «я не делал это упражнение» от «я до него ещё не дошёл».
+function skipRow(exercise) {
+  return { sessionId: state.session.id, exercise, setIdx: 0, weight: null, reps: null, rpe: null, painFlag: 0, skipFlag: 1 };
+}
+
+// Разовая починка данных, накопленных ДО Шага 8: тогда пропуски не помечались —
+// их «съедал» счётчик progressIdx. У каждой незавершённой сессии всё, что счётчик
+// считал закрытым, но следа в подходах не оставило, получает пометку пропуска.
+//
+// Запускается ОДИН раз на устройство (флаг в meta) при старте приложения, а не
+// при открытии сессии. Так надо, потому что после Шага 8 у progressIdx другой
+// смысл — курсор «где я»: перепрыгнутое стрелкой «вперёд →» упражнение уже НЕ
+// значит «пропущено». Если чинить при каждом открытии, приложение стало бы само
+// проставлять ложные пропуски тем упражнениям, мимо которых просто пролистали.
+async function normalizeLegacySkips() {
+  if (await store.getMeta("skipsNormalized")) return;
+  let touched = false;
+  for (const s of state.sessions.filter((x) => x.status === "open")) {
+    const plan = (planForSession(s) ?? []).slice().sort((a, b) => a.orderIdx - b.orderIdx);
+    const upto = Math.min(s.progressIdx ?? 0, plan.length);
+    for (let i = 0; i < upto; i++) {
+      const ex = plan[i].exercise;
+      if (exerciseStatus(state.sets, s.id, ex) !== "todo") continue;
+      const row = { sessionId: s.id, exercise: ex, setIdx: 0, weight: null, reps: null, rpe: null, painFlag: 0, skipFlag: 1 };
+      await store.replaceSets(s.id, ex, [row]);
+      touched = true;
+    }
   }
+  if (touched) state.sets = await store.getAllSets();
+  await store.setMeta("skipsNormalized", true);
 }
 
-function effectiveIdx() {
-  return state.viewIdx ?? state.session.progressIdx;
+async function openSessionFlow(session) {
+  state.session = session;
+  state.exercises = (planForSession(session) ?? []).slice().sort((a, b) => a.orderIdx - b.orderIdx);
+  if (state.exercises.length === 0) {
+    goWellbeing();
+    return;
+  }
+  if (sessionRemaining(state.sets, session.id, state.exercises) === 0) {
+    // Все упражнения отмечены, самочувствие ещё не спросили — типичный «закрыли
+    // приложение между последним подходом и экраном самочувствия».
+    goWellbeing();
+    return;
+  }
+  const saved = Math.min(Math.max(session.progressIdx ?? 0, 0), state.exercises.length - 1);
+  state.cursorIdx = exerciseStatus(state.sets, session.id, state.exercises[saved].exercise) === "todo"
+    ? saved
+    : nextTodoIdx(state.sets, session.id, state.exercises, saved) ?? saved;
+  screens.showScreen("session");
+  renderSessionScreen();
 }
 
 function currentItem() {
-  return state.exercises[effectiveIdx()];
+  return state.exercises[state.cursorIdx];
+}
+
+function renderSessionScreen() {
+  screens.renderSession(buildSessionVm(), (i) => guarded(() => setCursor(i)));
+}
+
+// Курсор (какое упражнение на экране) переезжает в progressIdx — поле осталось
+// в БД и в бэкапах, но смысл у него теперь «где я», а не «сколько закрыто».
+async function setCursor(idx) {
+  state.cursorIdx = idx;
+  const updated = { ...state.session, progressIdx: idx };
+  await store.updateSession(updated);
+  state.sessions = state.sessions.map((s) => (s.id === updated.id ? updated : s));
+  state.session = updated;
+  renderSessionScreen();
+}
+
+// Запись = замена всех строк упражнения целиком (одна транзакция). Возвращает
+// true, если упражнение до этого было незакрытым, — от этого зависит, прыгать
+// ли дальше и показывать ли подсказку автогуляции.
+async function recordExercise(exercise, rows) {
+  const wasTodo = exerciseStatus(state.sets, state.session.id, exercise) === "todo";
+  await store.replaceSets(state.session.id, exercise, rows);
+  state.sets = await store.getAllSets();
+  return wasTodo;
+}
+
+// После закрытия упражнения — на ближайшее незакрытое (по кругу). Если таких
+// нет — тренировка окончена.
+async function advanceAfterRecord() {
+  const next = nextTodoIdx(state.sets, state.session.id, state.exercises, state.cursorIdx);
+  if (next == null) {
+    const updated = { ...state.session, progressIdx: state.exercises.length };
+    await store.updateSession(updated);
+    state.sessions = state.sessions.map((s) => (s.id === updated.id ? updated : s));
+    state.session = updated;
+    goWellbeing();
+    return;
+  }
+  await setCursor(next);
 }
 
 function buildSessionVm() {
-  const idx = effectiveIdx();
+  const idx = state.cursorIdx;
   const item = state.exercises[idx];
-  const isReview = state.viewIdx != null && state.viewIdx < state.session.progressIdx;
+  const sid = state.session.id;
+  const statuses = sessionStatuses(state.sets, sid, state.exercises);
+  const remaining = statuses.filter((s) => s === "todo").length;
   const last = lastSets(state.sessions, state.sets, item.exercise);
 
   let recordedText = null;
-  if (isReview) {
-    const recorded = sessionExerciseSets(state.sets, state.session.id, item.exercise);
-    if (recorded.length === 0) recordedText = "пропущено";
-    else if (recorded.every((s) => s.painFlag)) recordedText = "🚑 больно";
-    else recordedText = "✓ " + formatLastSets(recorded.filter((s) => !s.painFlag));
+  if (statuses[idx] === "skipped") recordedText = "⏭ пропущено";
+  else if (statuses[idx] === "pain") recordedText = "🚑 больно";
+  else if (statuses[idx] === "done") {
+    const rec = sessionExerciseSets(state.sets, sid, item.exercise).filter((s) => !s.painFlag && !s.skipFlag);
+    recordedText = "✓ " + formatLastSets(rec);
   }
 
   const isPullup = item.exercise.startsWith("Подтягивания");
@@ -458,80 +541,53 @@ function buildSessionVm() {
   }
 
   return {
-    stepLabel: `Упражнение ${idx + 1} / ${state.exercises.length}${state.viewIdx != null ? " · просмотр" : ""}`,
+    stepLabel: `Осталось ${remaining} из ${state.exercises.length}`,
     pillLabel: `${state.session.day === "T" ? "Замеры" : `Силовая ${state.session.day}`} · Неделя ${state.session.week}`,
+    strip: state.exercises.map((it, i) => ({ status: statuses[i], here: i === idx, label: stripLabel(it.exercise) })),
     techniqueImg: techniqueImage(item.exercise),
     exercise: item.exercise,
     schemeLine,
     pullupMaxLabel,
     note: item.note || "",
     lastSetsText: formatLastSets(last),
-    sameDisabled: last.length === 0,
+    // «Так же» имеет смысл только для ещё не записанного упражнения (ярлык «повторить
+    // прошлый раз»). Если статус уже done/skipped/pain — кнопка неактивна, иначе тап по
+    // кружку полоски на записанном упражнении может молча затереть сегодняшние числа.
+    sameDisabled: last.length === 0 || statuses[idx] !== "todo",
     recordedText,
     backLabel: idx === 0 ? "← выйти" : "← назад",
-    isReview,
-    isPreview: inPreview(),
     forwardDisabled: idx >= state.exercises.length - 1,
     flash: consumeFlash(),
   };
 }
 
-async function logSetsAndAdvance(exercise, rows) {
-  for (const row of rows) {
-    const rec = { sessionId: state.session.id, exercise, ...row };
-    const id = await store.addSet(rec);
-    state.sets.push({ id, ...rec });
-  }
-  const updated = { ...state.session, progressIdx: state.session.progressIdx + 1 };
-  await store.updateSession(updated);
-  state.sessions = state.sessions.map((s) => (s.id === updated.id ? updated : s));
-  state.session = updated;
+// Подпись под кружком полоски: первое слово названия, максимум 7 букв.
+function stripLabel(exercise) {
+  const w = exercise.split(" ")[0].replace(/[():]/g, "");
+  return w.length > 7 ? `${w.slice(0, 7)}…` : w;
 }
 
-function afterExerciseAction() {
-  if (state.session.progressIdx >= state.exercises.length) {
-    goWellbeing();
-  } else {
-    screens.renderSession(buildSessionVm());
-  }
-}
-
-// ---------- Навигация «← назад» и режим просмотра/правки ----------
-
-function inReview() {
-  return state.viewIdx != null && state.viewIdx < state.session.progressIdx;
-}
-
-function inPreview() {
-  return state.session != null && state.viewIdx != null && state.viewIdx > state.session.progressIdx;
-}
+// ---------- Навигация «← назад» / «вперёд →» ----------
 
 async function onBack() {
-  const idx = effectiveIdx();
-  if (idx > 0) {
-    state.viewIdx = idx - 1;
-    if (state.viewIdx === state.session.progressIdx) state.viewIdx = null; // вернулись к текущему — обычный ввод
-    screens.renderSession(buildSessionVm());
+  if (state.cursorIdx > 0) {
+    await setCursor(state.cursorIdx - 1);
     return;
   }
-  // Первое упражнение — «← выйти»: возврат на «Сегодня». Пустую сессию (ничего
-  // не отмечено) стираем без следа — иначе в истории виснет «не завершена»,
-  // а «Сегодня» тянет обратно плиткой «Продолжить» в ошибочно выбранный день.
+  // Первое упражнение — «← выйти»: возврат на «Сегодня». Пустую сессию (ни одной
+  // записи) стираем без следа — иначе в истории виснет «не завершена», а «Сегодня»
+  // тянет обратно плиткой «Продолжить» в ошибочно выбранный день.
   const s = state.session;
-  const empty = s.progressIdx === 0 && !state.sets.some((x) => x.sessionId === s.id);
-  if (empty) {
+  if (!state.sets.some((x) => x.sessionId === s.id)) {
     await store.deleteSession(s.id);
     state.sessions = state.sessions.filter((x) => x.id !== s.id);
   }
   goToday();
 }
 
-function onForward() {
-  const idx = effectiveIdx();
-  if (idx >= state.exercises.length - 1) return; // дальше некуда — кнопка и так неактивна
-  state.viewIdx = idx + 1;
-  if (state.viewIdx === state.session.progressIdx) state.viewIdx = null; // дошли до текущего — обычный ввод
-  screens.renderSession(buildSessionVm());
+async function onForward() {
+  if (state.cursorIdx >= state.exercises.length - 1) return;
+  await setCursor(state.cursorIdx + 1);
 }
 
 // Общий ввод максимума через prompt. true — сохранено; false — отмена или
@@ -552,23 +608,14 @@ async function askPullupMax(showError) {
 }
 
 async function onPullupMaxTap() {
-  if (await askPullupMax(screens.showSessionError)) screens.renderSession(buildSessionVm());
+  if (await askPullupMax(screens.showSessionError)) renderSessionScreen();
 }
 
 async function onWorkoutPullupTap() {
   if (await askPullupMax(screens.showWorkoutError)) renderWorkoutScreen();
 }
 
-async function replaceCurrent(rows) {
-  const item = currentItem();
-  await store.replaceSets(state.session.id, item.exercise, rows);
-  state.sets = await store.getAllSets();
-  state.flash = { icon: "✏️", text: "Исправлено", danger: false };
-  screens.renderSession(buildSessionVm());
-}
-
 async function onSubmit() {
-  if (inPreview()) return;
   const item = currentItem();
   let parsed;
   try {
@@ -579,23 +626,22 @@ async function onSubmit() {
   }
   screens.showSessionError("");
 
-  if (inReview()) {
-    const rows = parsed.map((p, i) => ({
-      sessionId: state.session.id, exercise: item.exercise,
-      setIdx: i + 1, weight: p.weight, reps: p.reps, rpe: item.targetRpe, painFlag: 0,
-    }));
-    await replaceCurrent(rows);
-    return;
+  const rows = parsed.map((p, i) => ({
+    sessionId: state.session.id, exercise: item.exercise,
+    setIdx: i + 1, weight: p.weight, reps: p.reps, rpe: item.targetRpe, painFlag: 0, skipFlag: 0,
+  }));
+  const wasTodo = await recordExercise(item.exercise, rows);
+
+  if (wasTodo) {
+    // Автогуляция считается по введённым повторам с целевым усилием (не фактическим) —
+    // так же, как записанный rpe каждого сета. При исправлении уже записанного не
+    // пересчитывается: там правка, а не новый подход.
+    const loggedForHint = parsed.map((p) => ({ reps: p.reps, rpe: item.targetRpe }));
+    const hint = autoregulationHint(schemeTargetReps(item.scheme), item.targetRpe, loggedForHint);
+    if (hint) state.flash = { icon: "💡", text: hint, danger: false };
+  } else {
+    state.flash = { icon: "✏️", text: "Исправлено", danger: false };
   }
-
-  const rows = parsed.map((p, i) => ({ setIdx: i + 1, weight: p.weight, reps: p.reps, rpe: item.targetRpe, painFlag: 0 }));
-  // Паритет с bot/handlers.py: автогуляция считается по введённым повторам
-  // с целевым усилием (не фактическим) — так же, как записанный rpe каждого сета.
-  const loggedForHint = parsed.map((p) => ({ reps: p.reps, rpe: item.targetRpe }));
-  const hint = autoregulationHint(schemeTargetReps(item.scheme), item.targetRpe, loggedForHint);
-  if (hint) state.flash = { icon: "💡", text: hint, danger: false };
-
-  await logSetsAndAdvance(item.exercise, rows);
 
   if (state.session.day === "T" && item.exercise.startsWith("Подтягивания") && parsed.length > 0) {
     const best = Math.max(...parsed.map((p) => p.reps));
@@ -604,27 +650,39 @@ async function onSubmit() {
     state.flash = { icon: "🎯", text: `Максимум подтягиваний обновлён: ${best}`, danger: false };
   }
 
-  afterExerciseAction();
+  if (wasTodo) await advanceAfterRecord();
+  else renderSessionScreen();
 }
 
 async function onSame() {
-  if (inReview() || inPreview()) return;
   const item = currentItem();
+  // Страховка от гонки: кнопка и так неактивна для уже записанного упражнения
+  // (см. sameDisabled в buildSessionVm), но если тап всё же прошёл — не пишем поверх.
+  if (exerciseStatus(state.sets, state.session.id, item.exercise) !== "todo") return;
   const last = lastSets(state.sessions, state.sets, item.exercise);
   if (last.length === 0) return;
-  const rows = last.map((s) => ({ setIdx: s.setIdx, weight: s.weight, reps: s.reps, rpe: item.targetRpe, painFlag: 0 }));
-  await logSetsAndAdvance(item.exercise, rows);
-  afterExerciseAction();
+  const rows = last.map((s) => ({
+    sessionId: state.session.id, exercise: item.exercise,
+    setIdx: s.setIdx, weight: s.weight, reps: s.reps, rpe: item.targetRpe, painFlag: 0, skipFlag: 0,
+  }));
+  const wasTodo = await recordExercise(item.exercise, rows);
+  if (wasTodo) {
+    await advanceAfterRecord();
+  } else {
+    state.flash = { icon: "✏️", text: "Исправлено", danger: false };
+    renderSessionScreen();
+  }
 }
 
 async function onSkip() {
-  if (inPreview()) return;
-  if (inReview()) {
-    await replaceCurrent([]);
-    return;
+  const item = currentItem();
+  const wasTodo = await recordExercise(item.exercise, [skipRow(item.exercise)]);
+  if (wasTodo) {
+    await advanceAfterRecord();
+  } else {
+    state.flash = { icon: "⏭", text: "Отмечено пропущенным", danger: false };
+    renderSessionScreen();
   }
-  await logSetsAndAdvance(currentItem().exercise, []);
-  afterExerciseAction();
 }
 
 // Кнопка «Больно» убрана (решение CEO 10.07.2026). painFlag остаётся в модели:
@@ -977,7 +1035,7 @@ async function onHistoryEditSubmit(text) {
   }
   const rpe = historyTargetRpe(session, exercise);
   const rows = parsed.map((p, i) => ({
-    sessionId, exercise, setIdx: i + 1, weight: p.weight, reps: p.reps, rpe, painFlag: 0,
+    sessionId, exercise, setIdx: i + 1, weight: p.weight, reps: p.reps, rpe, painFlag: 0, skipFlag: 0,
   }));
   await store.replaceSets(sessionId, exercise, rows);
   state.sets = await store.getAllSets();
@@ -1072,10 +1130,21 @@ async function onImportPick(file) {
     // null: распознавание молча отвалится, цели сбросятся на дефолт.
     if (state.apiKey) await store.setMeta("apiKey", state.apiKey);
     await store.setMeta("foodGoals", state.foodGoals);
+    // Копия v5 уже хранит пометки пропуска — чинить в ней нечего, флага достаточно
+    // (иначе нормализация приняла бы курсор за «сделано» и наштамповала ложные
+    // пропуски). Решение принимаем по СЫРОЙ версии файла obj.version: validateBackup
+    // возвращает копию, уже приведённую к 5, — по ней отличить старую от новой нельзя.
+    if (obj.version === 5) await store.setMeta("skipsNormalized", true);
     state.sessions = await store.getAllSessions();
     state.sets = await store.getAllSets();
     state.food = await store.getAllFood();
     state.weights = await store.getAllWeights();
+    // Старая копия (v1–v4): пометок пропуска в ней нет, флага после clearAll() тоже.
+    // Чиним ПРЯМО СЕЙЧАС, а не при следующем запуске: иначе пользователь успеет
+    // открыть восстановленную сессию и полистать «вперёд →», курсор перезапишет
+    // progressIdx — и отложенная нормализация примет курсор за «сделано» и пометит
+    // пропущенным то, что человек не пропускал.
+    if (obj.version < 5) await normalizeLegacySkips();
     state.programStart = backup.meta.programStart;
     state.pullupMax = backup.meta.pullupMax;
     state.lastBackupDate = backup.meta.lastBackupDate;
@@ -1134,7 +1203,9 @@ function stopTimer(finished) {
 
 // ---------- Демо-режим для скриншотов (без записи в БД) ----------
 
-function renderDemoSession(mode) {
+// Шаг 8: режимы «просмотр»/«предпросмотр» удалены — фикстура больше не притворяется,
+// что запись где-то заблокирована; шаг-лейбл в новом формате («осталось N из M»).
+function renderDemoSession() {
   const item = {
     exercise: "Присед со штангой",
     scheme: "4×8",
@@ -1142,12 +1213,10 @@ function renderDemoSession(mode) {
     note: "глубина в комфорте, спина прямая",
   };
   const demoLast = [{ weight: 80, reps: 8 }, { weight: 80, reps: 8 }, { weight: 80, reps: 7 }];
-  const isReview = mode === "review";
-  const isPreview = mode === "preview";
 
   screens.showScreen("session");
   screens.renderSession({
-    stepLabel: `Упражнение ${isPreview ? 4 : 1} / 5${isReview || isPreview ? " · просмотр" : ""}`,
+    stepLabel: "Осталось 5 из 5",
     pillLabel: "Силовая A · Неделя 2",
     techniqueImg: techniqueImage(item.exercise),
     exercise: item.exercise,
@@ -1155,11 +1224,9 @@ function renderDemoSession(mode) {
     note: item.note,
     lastSetsText: formatLastSets(demoLast),
     sameDisabled: false,
-    recordedText: isReview ? "✓ 80×8, 8, 7" : null,
-    backLabel: isReview ? "← выйти" : "← назад",
+    recordedText: null,
+    backLabel: "← выйти",
     forwardDisabled: false,
-    isReview,
-    isPreview,
     flash: null,
   });
 }
@@ -1223,7 +1290,7 @@ function renderDemoHub() {
   screens.renderToday({
     hint: "Сегодня силовая C 💪",
     weekLabel: "Месяц 2 · Неделя 3",
-    resumeLabel: "Продолжить: Силовая B от 2026-07-08 (упражнение 3/5)",
+    resumeLabel: "Продолжить: Силовая B от 2026-07-08 (осталось 3 из 5)",
     backupLabel: "⚠️ Копию не делал 12 дн.",
     workoutSub: "по плану: Силовая C · макс подтягиваний 7",
     weightsSub: "Понедельник — день замера ⚖️",
@@ -1250,7 +1317,7 @@ function bindEvents() {
   screens.on("btn-day-c", "click", () => guarded(() => onStartStrength("C")));
   screens.on("btn-run", "click", () => guarded(onStartRun));
   screens.on("btn-history-back", "click", goToday);
-  screens.on("resume-tile", "click", onResume);
+  screens.on("resume-tile", "click", () => guarded(onResume));
   screens.on("backup-tile", "click", goHistory);
 
   // Вкладки нижней панели + плитки-разделы хаба.
@@ -1266,7 +1333,7 @@ function bindEvents() {
   // (measure-tile/today-pullup-tile), перевешаны на переехавшие id.
   screens.on("workout-measure-tile", "click", () => guarded(() => onStartStrength("T")));
   screens.on("workout-pullup-tile", "click", () => guarded(onWorkoutPullupTap));
-  screens.on("workout-resume-tile", "click", onResume);
+  screens.on("workout-resume-tile", "click", () => guarded(onResume));
 
   screens.on("history-export", "click", () => guarded(onExport));
   screens.on("history-import", "click", screens.openFilePicker);
@@ -1278,11 +1345,12 @@ function bindEvents() {
   screens.on("session-same", "click", () => guarded(onSame));
   screens.on("session-skip", "click", () => guarded(onSkip));
   screens.on("session-back", "click", () => guarded(onBack));
-  screens.on("session-forward", "click", () => guarded(async () => onForward()));
+  screens.on("session-forward", "click", () => guarded(onForward));
 
   // Таймер отдыха ничего не пишет в БД — без guarded (иначе тап блокировался
   // бы, пока идёт запись подхода).
   screens.on("btn-rest-1", "click", () => startTimer(60));
+  screens.on("btn-rest-90", "click", () => startTimer(90));
   screens.on("btn-rest-2", "click", () => startTimer(120));
   screens.on("btn-rest-3", "click", () => startTimer(180));
   screens.on("session-timer", "click", () => stopTimer(false));
@@ -1322,7 +1390,7 @@ async function init() {
 
   const params = new URLSearchParams(location.search);
   if (params.get("screen") === "session-demo") {
-    renderDemoSession(params.get("mode"));
+    renderDemoSession();
     return;
   }
   if (params.get("screen") === "history-demo") {
@@ -1359,6 +1427,16 @@ async function init() {
   state.sessions = await store.getAllSessions();
   state.sets = await store.getAllSets();
   state.weights = await store.getAllWeights();
+
+  // Разовая починка старых незавершённых сессий (пропуски там не помечены).
+  // Это единственная запись в базу до показа первого экрана — если она упадёт,
+  // приложение всё равно должно открыться: починка не критична для «Сегодня»,
+  // а флаг не выставится, и попытка повторится при следующем запуске.
+  try {
+    await normalizeLegacySkips();
+  } catch (e) {
+    console.warn("Не удалось пометить пропуски в старых сессиях — приложение работает, попробуем при следующем запуске.", e);
+  }
 
   goToday();
 

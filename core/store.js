@@ -63,10 +63,6 @@ export function deleteSession(id) {
   return wrap(requireDb().transaction("sessions", "readwrite").objectStore("sessions").delete(id));
 }
 
-export function addSet(set) {
-  return wrap(requireDb().transaction("sets", "readwrite").objectStore("sets").add(set));
-}
-
 export function getAllSessions() {
   return wrap(requireDb().transaction("sessions", "readonly").objectStore("sessions").getAll());
 }

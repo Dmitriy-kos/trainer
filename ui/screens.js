@@ -294,7 +294,8 @@ export function resetFileInput() {
 
 // ---------- Сессия ----------
 
-export function renderSession(vm) {
+export function renderSession(vm, onStripTap) {
+  renderStrip(vm.strip, onStripTap);
   $("session-step").textContent = vm.stepLabel;
   $("session-pill").textContent = vm.pillLabel;
 
@@ -341,13 +342,38 @@ export function renderSession(vm) {
   $("session-back").disabled = false;
   $("session-back").textContent = vm.backLabel ?? "← назад";
   $("session-forward").disabled = !!vm.forwardDisabled;
-  $("session-same").hidden = !!vm.isReview || !!vm.isPreview;
-  // Предпросмотр будущего упражнения — только чтение: ввод и действия скрыты.
-  $("session-input-row").hidden = !!vm.isPreview;
-  $("session-actions").hidden = !!vm.isPreview;
+  // Шаг 8: режимы «просмотр»/«предпросмотр» удалены — запись доступна на любом
+  // упражнении, поэтому ввод и действия больше никогда не прячутся.
+  $("session-same").hidden = false;
+  $("session-input-row").hidden = false;
+  $("session-actions").hidden = false;
 
   renderFlash($("session-flash"), vm.flash);
 }
+
+function renderStrip(strip, onStripTap) {
+  const wrap = $("session-strip");
+  const items = strip ?? [];
+  wrap.textContent = "";
+  wrap.hidden = items.length === 0;
+  items.forEach((it, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = it.here ? "dot here" : `dot st-${it.status}`;
+    const icon = document.createElement("span");
+    icon.className = "dot-icon";
+    icon.textContent = it.here ? "●" : STRIP_ICON[it.status];
+    const name = document.createElement("span");
+    name.className = "dot-name";
+    name.textContent = it.label;
+    b.appendChild(icon);
+    b.appendChild(name);
+    if (onStripTap) b.addEventListener("click", () => onStripTap(i));
+    wrap.appendChild(b);
+  });
+}
+
+const STRIP_ICON = { done: "✓", skipped: "⏭", pain: "🚑", todo: "○" };
 
 export function renderTimer(state) {
   const tile = $("session-timer");

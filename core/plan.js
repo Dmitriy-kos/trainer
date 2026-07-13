@@ -1,4 +1,7 @@
 // Данные исходно портированы из bot/plan.py; паритет разорван 08.07.2026 (порядок дня B), источник истины — PWA.
+// 13.07.2026 (Шаг 8): подтягивания подняты перед тягами на спину в днях 1/A, 1/C, 2/C —
+// подтягивания это цель (10 строгих), делаем их свежими; тяги — добивка. Румынская и
+// становая тяги под правило не подпадают.
 
 const _WEEKDAY_TO_DAY = { 0: "A", 2: "B", 4: "C" };
 
@@ -26,8 +29,8 @@ const PROGRAM_1 = {
       { exercise: "Присед со штангой", orderIdx: 1, scheme: "4×8", targetRpe: 7, note: "глубина в комфорте, спина прямая" },
       { exercise: "Жим лёжа", orderIdx: 2, scheme: "4×8", targetRpe: 7, note: "лопатки сведены" },
       { exercise: "Румынская тяга (RDL)", orderIdx: 3, scheme: "3×10", targetRpe: 7, note: "таз назад, ноги почти прямые" },
-      { exercise: "Тяга гантели в наклоне", orderIdx: 4, scheme: "3×10 / рука", targetRpe: 7, note: "спина параллельно полу" },
-      { exercise: "Подтягивания", orderIdx: 5, scheme: "по прогрессии", targetRpe: 8, note: "качество > количество" },
+      { exercise: "Подтягивания", orderIdx: 4, scheme: "по прогрессии", targetRpe: 8, note: "делаем свежим, до тяг — качество > количество" },
+      { exercise: "Тяга гантели в наклоне", orderIdx: 5, scheme: "3×10 / рука", targetRpe: 7, note: "добивка после подтягиваний; спина параллельно полу" },
     ],
     B: [
       { exercise: "Становая тяга", orderIdx: 1, scheme: "4×5", targetRpe: 7, note: "техника, умеренный вес" },
@@ -39,8 +42,8 @@ const PROGRAM_1 = {
     C: [
       { exercise: "Фронтальный присед", orderIdx: 1, scheme: "4×6", targetRpe: 7, note: "или жим ногами, если ноги устали" },
       { exercise: "Жим гантелей на наклонной", orderIdx: 2, scheme: "3×10", targetRpe: 7, note: "верх груди" },
-      { exercise: "Тяга штанги в наклоне", orderIdx: 3, scheme: "4×8", targetRpe: 7, note: "" },
-      { exercise: "Подтягивания", orderIdx: 4, scheme: "по прогрессии", targetRpe: 8, note: "макс качественных" },
+      { exercise: "Подтягивания", orderIdx: 3, scheme: "по прогрессии", targetRpe: 8, note: "делаем свежим, до тяг — макс качественных" },
+      { exercise: "Тяга штанги в наклоне", orderIdx: 4, scheme: "4×8", targetRpe: 7, note: "добивка после подтягиваний" },
       { exercise: "Аксессуары (суперсет)", orderIdx: 5, scheme: "планка 3×40с + подъём ног 3×12 + бицепс/трицепс 3×12", targetRpe: 7, note: "" },
     ],
   },
@@ -77,8 +80,8 @@ const PROGRAM_2 = {
     C: [
       { exercise: "Фронтальный присед", orderIdx: 1, scheme: "4×5", targetRpe: 8, note: "связка с power clean" },
       { exercise: "Жим гантелей на наклонной", orderIdx: 2, scheme: "4×8", targetRpe: 7, note: "верх груди" },
-      { exercise: "Тяга штанги в наклоне", orderIdx: 3, scheme: "4×6", targetRpe: 8, note: "тяжелее месяца 1" },
-      { exercise: "Подтягивания", orderIdx: 4, scheme: "по прогрессии", targetRpe: 8, note: "качество, можно с паузами" },
+      { exercise: "Подтягивания", orderIdx: 3, scheme: "по прогрессии", targetRpe: 8, note: "делаем свежим, до тяг — качество, можно с паузами" },
+      { exercise: "Тяга штанги в наклоне", orderIdx: 4, scheme: "4×6", targetRpe: 8, note: "добивка после подтягиваний; тяжелее месяца 1" },
       { exercise: "Аксессуары (пресс + руки)", orderIdx: 5, scheme: "русские повороты 3×20 + бицепс 3×12 + трицепс 3×12", targetRpe: 7, note: "пресса ровно 3 подхода" },
     ],
     T: [

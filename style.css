@@ -108,3 +108,16 @@ p { color: #8E8E93; font-size: 15px; line-height: 1.4; }
    Поднят над панелью вкладок; когда панель скрыта (body.no-tabbar) — возвращается вниз. */
 .app-version { position: fixed; left: 8px; bottom: calc(72px + env(safe-area-inset-bottom)); font-size: 10px; color: rgba(60,60,67,.3); pointer-events: none; user-select: none; }
 body.no-tabbar .app-version { bottom: calc(4px + env(safe-area-inset-bottom)); }
+
+/* Полоска статусов упражнений сессии (Шаг 8): свободный порядок — видно, что
+   записано, что пропущено, что осталось; тап по кружку = переход. */
+.card.strip { display: flex; gap: 6px; padding: 10px 8px; }
+.dot { flex: 1; border: 0; border-radius: 12px; padding: 8px 2px; background: #F2F2F7; font-family: inherit; cursor: pointer; }
+.dot-icon { display: block; font-size: 15px; font-weight: 700; line-height: 1.15; color: #C7C7CC; }
+.dot-name { display: block; font-size: 9px; font-weight: 700; color: #8E8E93; margin-top: 2px; }
+.dot.here { background: #0A84FF; }
+.dot.here .dot-icon { color: #fff; }
+.dot.here .dot-name { color: rgba(255, 255, 255, .75); }
+.dot.st-done { background: #E4F7EA; }
+.dot.st-done .dot-icon { color: #28A745; }
+.dot.st-skipped .dot-icon, .dot.st-pain .dot-icon { color: #8E8E93; }
