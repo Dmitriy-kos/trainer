@@ -5,7 +5,7 @@ import * as store from "../core/store.js";
 import { autoregulationHint, overtrainingAlert, programForDate, measureTile, pullupDayScheme, restRemaining, formatRest, backupReminder } from "../core/logic.js";
 import { parseSetInput, formatLastSets, schemeTargetReps, latestCacheVersion } from "../core/format.js";
 import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS } from "../core/plan.js";
-import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx } from "../core/queries.js";
+import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
 import { latestWeigh, weighDeltas, sortedByDateDesc, daysSince } from "../core/weigh.js";
 import { DEFAULT_GOALS, dayTotals, scalePortion } from "../core/food.js";
@@ -421,6 +421,19 @@ async function onStartStrength(day) {
 // Именно она отличает «я не делал это упражнение» от «я до него ещё не дошёл».
 function skipRow(exercise) {
   return { sessionId: state.session.id, exercise, setIdx: 0, weight: null, reps: null, rpe: null, painFlag: 0, skipFlag: 1 };
+}
+
+// Уборка «призраков»: открытых сессий без единой записи. Такая сессия заводится
+// тапом по кнопке дня и остаётся в базе, если из неё ушли не кнопкой «← выйти»
+// (например, просто закрыли приложение). Тренировкой она не является — терять
+// в ней нечего, — но навсегда виснет плиткой «Продолжить» на «Сегодня».
+// Вызывается ПЕРЕД normalizeLegacySkips: иначе та проставит призраку пометки
+// пропуска, и он перестанет быть призраком.
+async function dropGhostSessions() {
+  const ids = ghostSessionIds(state.sessions, state.sets);
+  if (ids.length === 0) return;
+  for (const id of ids) await store.deleteSession(id);
+  state.sessions = state.sessions.filter((s) => !ids.includes(s.id));
 }
 
 // Разовая починка данных, накопленных ДО Шага 8: тогда пропуски не помечались —
@@ -1428,14 +1441,14 @@ async function init() {
   state.sets = await store.getAllSets();
   state.weights = await store.getAllWeights();
 
-  // Разовая починка старых незавершённых сессий (пропуски там не помечены).
-  // Это единственная запись в базу до показа первого экрана — если она упадёт,
-  // приложение всё равно должно открыться: починка не критична для «Сегодня»,
-  // а флаг не выставится, и попытка повторится при следующем запуске.
+  // Записи в базу до показа первого экрана. Если упадут — приложение всё равно
+  // должно открыться: обе уборки не критичны для «Сегодня», а повторятся при
+  // следующем запуске.
   try {
+    await dropGhostSessions();
     await normalizeLegacySkips();
   } catch (e) {
-    console.warn("Не удалось пометить пропуски в старых сессиях — приложение работает, попробуем при следующем запуске.", e);
+    console.warn("Не удалось прибраться в базе при старте — приложение работает, попробуем при следующем запуске.", e);
   }
 
   goToday();
