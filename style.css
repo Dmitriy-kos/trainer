@@ -121,3 +121,17 @@ body.no-tabbar .app-version { bottom: calc(4px + env(safe-area-inset-bottom)); }
 .dot.st-done { background: #E4F7EA; }
 .dot.st-done .dot-icon { color: #28A745; }
 .dot.st-skipped .dot-icon, .dot.st-pain .dot-icon { color: #8E8E93; }
+
+/* Экран «Состав тела» (шаг 9) */
+.tile-row { display: flex; justify-content: space-between; align-items: center; }
+.tile-arr { color: #8E8E93; font-size: 20px; font-weight: 700; }
+.m-row { display: flex; align-items: baseline; gap: 8px; padding: 9px 0; border-bottom: 1px solid #F0F0F4; font-variant-numeric: tabular-nums; }
+.m-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.m-row:first-child { padding-top: 0; }
+.m-name { font-size: 14px; color: #3C3C43; flex: 1; min-width: 0; }
+.m-hist { display: block; font-size: 12px; color: #8E8E93; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-val { font-size: 15px; font-weight: 800; }
+.m-delta { font-size: 12px; font-weight: 700; border-radius: 100px; padding: 2px 8px; min-width: 46px; text-align: center; }
+.m-delta.good { color: #1D7A3A; background: #E4F5E9; }
+.m-delta.bad { color: #C62F35; background: #FCE9EA; }
+.m-delta.neutral { color: #8E8E93; background: #F0F0F4; }

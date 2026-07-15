@@ -259,16 +259,48 @@
       <div class="s" id="weights-latest-sub"></div>
     </div>
 
+    <button type="button" class="card card-btn tile-row" id="weights-bodycomp-tile" hidden>
+      <div>
+        <div class="history-title">🧬 Состав тела</div>
+        <div class="history-sub" id="weights-bodycomp-sub"></div>
+      </div>
+      <div class="tile-arr">›</div>
+    </button>
+
     <div class="card mini" id="weights-busy" hidden><div class="v">Распознаю… ⏳</div></div>
 
     <div class="card" id="weights-draft" hidden>
       <div class="l">Проверь и запиши</div>
       <div class="input-row">
-        <input type="number" inputmode="decimal" id="weights-draft-weight" placeholder="вес, кг">
+        <input type="number" inputmode="decimal" id="wd-weight" placeholder="вес, кг">
       </div>
       <div class="input-row">
-        <input type="number" inputmode="decimal" id="weights-draft-fat" placeholder="жир, %">
-        <input type="number" inputmode="decimal" id="weights-draft-muscle" placeholder="мышцы, кг">
+        <input type="number" inputmode="decimal" id="wd-fatPct" placeholder="жир, %">
+        <input type="number" inputmode="decimal" id="wd-muscleKg" placeholder="мышцы, кг">
+      </div>
+      <div class="l" style="margin-top:10px">Состав тела (со скрина)</div>
+      <div class="input-row">
+        <input type="number" inputmode="decimal" id="wd-subFatPct" placeholder="подкожный жир, %">
+        <input type="number" inputmode="decimal" id="wd-visceral" placeholder="висцеральный жир">
+      </div>
+      <div class="input-row">
+        <input type="number" inputmode="decimal" id="wd-waterPct" placeholder="вода, %">
+        <input type="number" inputmode="decimal" id="wd-musclePct" placeholder="доля мышц, %">
+      </div>
+      <div class="input-row">
+        <input type="number" inputmode="decimal" id="wd-skeletalPct" placeholder="скелетные мышцы, %">
+        <input type="number" inputmode="decimal" id="wd-proteinPct" placeholder="белок, %">
+      </div>
+      <div class="input-row">
+        <input type="number" inputmode="decimal" id="wd-boneKg" placeholder="кости, кг">
+        <input type="number" inputmode="decimal" id="wd-leanKg" placeholder="без жира, кг">
+      </div>
+      <div class="input-row">
+        <input type="number" inputmode="decimal" id="wd-bmrKcal" placeholder="базовый расход, ккал">
+        <input type="number" inputmode="decimal" id="wd-bmi" placeholder="ИМТ">
+      </div>
+      <div class="input-row">
+        <input type="number" inputmode="decimal" id="wd-bioAge" placeholder="биологический возраст">
       </div>
       <div class="grid grid2">
         <button type="button" class="btn btn-accent" id="weights-draft-save">Записать</button>
@@ -283,9 +315,14 @@
       <button type="button" class="btn btn-accent" id="weights-screen-btn">📷 Скрин весов</button>
       <button type="button" class="btn" id="weights-manual-btn">✍️ Вручную</button>
     </div>
-    <input type="file" id="weights-file-input" accept="image/*" hidden>
+    <input type="file" id="weights-file-input" accept="image/*" multiple hidden>
 
     <div class="error" id="weights-error" hidden></div>
+  </section>
+
+  <section id="screen-bodycomp" hidden>
+    <div class="hd"><span class="step">Состав тела</span><button type="button" class="pill" id="bodycomp-back">← Вес</button></div>
+    <div class="card" id="bodycomp-card"></div>
   </section>
 
 </div>

@@ -7,7 +7,7 @@ import { parseSetInput, formatLastSets, schemeTargetReps, latestCacheVersion } f
 import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS } from "../core/plan.js";
 import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
-import { latestWeigh, weighDeltas, sortedByDateDesc, daysSince } from "../core/weigh.js";
+import { latestWeigh, weighDeltas, sortedByDateDesc, daysSince, METRICS, BODYCOMP_METRICS, metricHistory, metricDelta, deltaTone, parseWeighDraft } from "../core/weigh.js";
 import { DEFAULT_GOALS, dayTotals, scalePortion } from "../core/food.js";
 import { recognizeFood, recognizeWeights } from "../core/claude.js";
 import { compressImage } from "./image.js";
@@ -38,7 +38,7 @@ const state = {
   foodSettingsOpen: false,
   foodBusy: false,       // идёт распознавание (спиннер)
   weights: [],           // записи взвешивания (все даты), зеркало store — читается в init()
-  weighDraft: null,      // черновик карточки взвешивания: {weight, fatPct, muscleKg, source, editingId|null}
+  weighDraft: null,      // черновик карточки взвешивания: {values: {14 ключей METRICS}, source, editingId|null}
   weighBusy: false,      // идёт распознавание скрина весов (спиннер)
 };
 
@@ -228,6 +228,36 @@ function weighDeltaText(delta) {
   return `Δ ${sign}${numRu(Math.abs(delta))} кг`;
 }
 
+// Значение показателя с единицей: 51,5% / 3,3 кг / 1804 ккал / 26.
+function metricValueText(m, v) {
+  if (v == null) return "—";
+  const num = numRu(v);
+  if (!m.unit) return num;
+  return m.unit === "%" ? `${num}%` : `${num} ${m.unit}`;
+}
+
+function buildBodycompVm() {
+  const rows = BODYCOMP_METRICS.map((m) => {
+    const hist = metricHistory(state.weights, m.key, 3);
+    const delta = metricDelta(state.weights, m.key);
+    const sign = delta == null ? "" : delta > 0 ? "+" : delta < 0 ? "−" : "±";
+    return {
+      label: m.label,
+      hist: hist.length > 1 ? hist.map((v) => numRu(v)).join(" → ") : "",
+      value: metricValueText(m, hist.length ? hist[hist.length - 1] : null),
+      delta: delta == null ? null : `${sign}${numRu(Math.abs(delta))}`,
+      tone: deltaTone(m.key, delta),
+    };
+  });
+  return { rows };
+}
+
+function goBodycomp() {
+  screens.showScreen("bodycomp");
+  screens.renderTabbar("weights");
+  screens.renderBodycomp(buildBodycompVm());
+}
+
 function buildWeightsVm() {
   const sorted = sortedByDateDesc(state.weights);
   const latestEntry = sorted[0] ?? null;
@@ -255,14 +285,19 @@ function buildWeightsVm() {
     return { id: e.id, label: `${formatDateShort(e.date)} · ${numRu(e.weight)} кг`, sub: subParts.join(" · ") };
   });
 
-  const draft = state.weighDraft ? {
-    weight: state.weighDraft.weight ?? "",
-    fat: state.weighDraft.fatPct ?? "",
-    muscle: state.weighDraft.muscleKg ?? "",
-    isEdit: state.weighDraft.editingId != null,
-  } : null;
+  const draft = state.weighDraft ? { values: state.weighDraft.values, isEdit: state.weighDraft.editingId != null } : null;
 
-  return { latest, draft, entries, busy: state.weighBusy, flash: consumeFlash() };
+  // Плитка «Состав тела»: видна при ≥1 замере; N — сколько показателей заполнено
+  // в последней записи, где есть хоть один (жир/мышцы старых записей тоже считаются).
+  let bodycomp = null;
+  if (sorted.length) {
+    const withComp = sorted.find((e) => BODYCOMP_METRICS.some((m) => e[m.key] != null));
+    bodycomp = withComp
+      ? { sub: `показателей: ${BODYCOMP_METRICS.filter((m) => withComp[m.key] != null).length} · обновлён ${formatDateShort(withComp.date)}` }
+      : { sub: "пока только вес — пришли скрины весов" };
+  }
+
+  return { latest, draft, entries, busy: state.weighBusy, flash: consumeFlash(), bodycomp };
 }
 
 function renderWeightsScreen() {
@@ -273,12 +308,14 @@ function renderWeightsScreen() {
 function onWeighEntryTap(id) {
   const e = state.weights.find((x) => x.id === id);
   if (!e) return;
-  state.weighDraft = { weight: e.weight, fatPct: e.fatPct, muscleKg: e.muscleKg, source: e.source, editingId: id };
+  const values = Object.fromEntries(METRICS.map((m) => [m.key, e[m.key] ?? null]));
+  state.weighDraft = { values, source: e.source, editingId: id };
   renderWeightsScreen();
 }
 
 function onWeighManual() {
-  state.weighDraft = { weight: null, fatPct: null, muscleKg: null, source: "manual", editingId: null };
+  const values = Object.fromEntries(METRICS.map((m) => [m.key, null]));
+  state.weighDraft = { values, source: "manual", editingId: null };
   renderWeightsScreen();
 }
 
@@ -292,16 +329,20 @@ function onWeighScreenBtn() {
 }
 
 function openWeighDraftFromRecognition(parsed) {
-  state.weighDraft = { weight: parsed.weight, fatPct: parsed.fatPct, muscleKg: parsed.muscleKg, source: "screen", editingId: null };
+  state.weighDraft = { values: parsed, source: "screen", editingId: null };
   state.weighBusy = false;
   renderWeightsScreen();
 }
 
-async function onWeighFilePicked(file) {
-  if (!file) return;
-  let image;
+async function onWeighFilesPicked(files) {
+  if (!files.length) return;
+  if (files.length > 2) {
+    screens.showWeightsError("Выбери не больше двух скринов — главный экран и список показателей.");
+    return;
+  }
+  let images;
   try {
-    image = await compressImage(file);
+    images = await Promise.all(files.map((f) => compressImage(f)));
   } catch (e) {
     screens.showWeightsError(e.message);
     return;
@@ -310,7 +351,7 @@ async function onWeighFilePicked(file) {
   screens.showWeightsError("");
   renderWeightsScreen();
   try {
-    const parsed = await recognizeWeights({ apiKey: state.apiKey, image });
+    const parsed = await recognizeWeights({ apiKey: state.apiKey, images });
     openWeighDraftFromRecognition(parsed);
   } catch (e) {
     state.weighBusy = false;
@@ -319,32 +360,13 @@ async function onWeighFilePicked(file) {
   }
 }
 
-// Валидация как в readDraftFields еды: пробел не должен молча пройти через
-// Number(" ") === 0 — сначала trim-проверка на пустоту, потом парсинг.
 function readWeighDraftFields() {
-  const f = screens.getWeightsDraft();
-  if (String(f.weight).trim() === "") {
-    screens.showWeightsError("Введи вес.");
+  const parsed = parseWeighDraft(screens.getWeightsDraft());
+  if (!parsed.ok) {
+    screens.showWeightsError(parsed.error);
     return null;
   }
-  const weight = Math.round(Number(f.weight) * 10) / 10;
-  if (!Number.isFinite(weight) || weight <= 0 || weight > 400) {
-    screens.showWeightsError("Вес должен быть числом больше 0 и не больше 400 кг.");
-    return null;
-  }
-  const fatRaw = String(f.fat).trim();
-  const fatPct = fatRaw === "" ? null : Math.round(Number(f.fat) * 10) / 10;
-  if (fatRaw !== "" && !Number.isFinite(fatPct)) {
-    screens.showWeightsError("Процент жира должен быть числом.");
-    return null;
-  }
-  const muscleRaw = String(f.muscle).trim();
-  const muscleKg = muscleRaw === "" ? null : Math.round(Number(f.muscle) * 10) / 10;
-  if (muscleRaw !== "" && !Number.isFinite(muscleKg)) {
-    screens.showWeightsError("Мышечная масса должна быть числом.");
-    return null;
-  }
-  return { weight, fatPct, muscleKg };
+  return parsed.values;
 }
 
 async function onWeighDraftSave() {
@@ -1286,7 +1308,14 @@ function renderDemoWeights() {
   screens.renderTabbar("weights");
   screens.renderWeights({
     latest: { value: "84,6 кг", sub: "жир 24,9% · мышцы 59,7 кг · −0,4 кг за неделю" },
-    draft: { weight: 84.6, fat: 24.9, muscle: 59.7, isEdit: false },
+    draft: {
+      values: {
+        weight: 84.6, fatPct: 24.9, subFatPct: 18.2, visceral: 9, waterPct: 55.1, musclePct: 40.3,
+        muscleKg: 59.7, skeletalPct: 37.8, proteinPct: 17.6, boneKg: 3.4, leanKg: 63.7, bmrKcal: 1720,
+        bmi: 24.1, bioAge: 33,
+      },
+      isEdit: false,
+    },
     entries: [
       { id: 3, label: "2026-07-08 · 84,6 кг", sub: "жир 24,9% · Δ −0,4 кг" },
       { id: 2, label: "2026-07-01 · 85,0 кг", sub: "жир 25,3% · Δ −0,3 кг" },
@@ -1294,6 +1323,7 @@ function renderDemoWeights() {
     ],
     busy: false,
     flash: null,
+    bodycomp: { sub: "показателей: 12 · обновлён 08.07" },
   }, { onEntryTap: () => {} });
 }
 
@@ -1392,10 +1422,12 @@ function bindEvents() {
 
   screens.on("weights-screen-btn", "click", onWeighScreenBtn);
   screens.on("weights-manual-btn", "click", onWeighManual);
-  screens.onWeightsFilePicked((file) => guarded(async () => { await onWeighFilePicked(file); screens.resetWeightsFileInput(); }));
+  screens.onWeightsFilePicked((files) => guarded(async () => { await onWeighFilesPicked(files); screens.resetWeightsFileInput(); }));
   screens.on("weights-draft-save", "click", () => guarded(onWeighDraftSave));
   screens.on("weights-draft-delete", "click", () => guarded(onWeighDraftDelete));
   screens.on("weights-draft-cancel", "click", onWeighDraftCancel);
+  screens.on("weights-bodycomp-tile", "click", goBodycomp);
+  screens.on("bodycomp-back", "click", goWeights);
 }
 
 async function init() {
@@ -1416,6 +1448,15 @@ async function init() {
   }
   if (params.get("screen") === "weights-demo") {
     renderDemoWeights();
+    return;
+  }
+  if (params.get("screen") === "bodycomp-demo") {
+    state.weights = [
+      { id: 1, date: "2026-06-16", weight: 86.7, fatPct: 26.4, subFatPct: 17.7, visceral: 10.1, waterPct: 51.0, musclePct: 69.2, muscleKg: 59.4, skeletalPct: 50.9, proteinPct: 18.9, boneKg: 3.32, leanKg: 63.4, bmrKcal: 1815, bmi: 26.4, bioAge: 39, source: "screen" },
+      { id: 2, date: "2026-06-23", weight: 86.1, fatPct: 26.1, subFatPct: 17.4, visceral: 9.8, waterPct: 51.2, musclePct: 69.5, muscleKg: 59.5, skeletalPct: 51.0, proteinPct: 19.0, boneKg: 3.32, leanKg: 63.4, bmrKcal: 1810, bmi: 26.2, bioAge: 39, source: "screen" },
+      { id: 3, date: "2026-06-30", weight: 85.4, fatPct: 25.6, subFatPct: 17.1, visceral: 9.6, waterPct: 51.5, musclePct: 69.8, muscleKg: 59.6, skeletalPct: 51.2, proteinPct: 19.1, boneKg: 3.33, leanKg: 63.6, bmrKcal: 1804, bmi: 26.0, bioAge: 38, source: "screen" },
+    ];
+    goBodycomp();
     return;
   }
   if (params.get("screen") === "hub-demo") {

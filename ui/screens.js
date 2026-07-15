@@ -1,15 +1,18 @@
 // DOM-рендеринг. Никакой бизнес-логики, никаких вызовов core/* или store.js —
 // только готовые данные (view-model) на входе и манипуляции с DOM внутри.
 // Вся работа с document живёт здесь; app.js эту функцию (screens.on/…) не обходит.
+// Исключение — METRICS: это данные-описатель (порядок/подписи полей), а не логика.
+
+import { METRICS } from "../core/weigh.js";
 
 const $ = (id) => document.getElementById(id);
 
-const SCREEN_IDS = ["today", "history", "session", "wellbeing", "done", "run", "food", "workout", "weights"];
+const SCREEN_IDS = ["today", "history", "session", "wellbeing", "done", "run", "food", "workout", "weights", "bodycomp"];
 
 // Экраны-разделы: на них постоянно видна нижняя панель вкладок. Остальные —
 // фокус-режимы (сессия, самочувствие, done, бег) — панель прячут, чтобы
 // случайный тап не выбил из записи подхода (дизайн_v7, раздел 1).
-const TAB_SCREENS = ["today", "workout", "food", "weights", "history"];
+const TAB_SCREENS = ["today", "workout", "food", "weights", "history", "bodycomp"];
 
 export function showScreen(name) {
   for (const s of SCREEN_IDS) $(`screen-${s}`).hidden = s !== name;
@@ -541,14 +544,16 @@ export function renderWeights(vm, handlers) {
     latestSub.textContent = "Замеров ещё нет";
   }
 
+  const tile = $("weights-bodycomp-tile");
+  tile.hidden = !vm.bodycomp;
+  if (vm.bodycomp) $("weights-bodycomp-sub").textContent = vm.bodycomp.sub;
+
   $("weights-busy").hidden = !vm.busy;
 
   const draft = $("weights-draft");
   draft.hidden = !vm.draft;
   if (vm.draft) {
-    $("weights-draft-weight").value = vm.draft.weight;
-    $("weights-draft-fat").value = vm.draft.fat;
-    $("weights-draft-muscle").value = vm.draft.muscle;
+    for (const m of METRICS) $(`wd-${m.key}`).value = vm.draft.values[m.key] ?? "";
     $("weights-draft-delete").hidden = !vm.draft.isEdit;
   }
 
@@ -574,11 +579,7 @@ export function renderWeights(vm, handlers) {
 }
 
 export function getWeightsDraft() {
-  return {
-    weight: $("weights-draft-weight").value,
-    fat: $("weights-draft-fat").value,
-    muscle: $("weights-draft-muscle").value,
-  };
+  return Object.fromEntries(METRICS.map((m) => [m.key, $(`wd-${m.key}`).value]));
 }
 
 export function showWeightsError(msg) {
@@ -589,6 +590,38 @@ export function showWeightsError(msg) {
 
 export function openWeightsFilePicker() { $("weights-file-input").click(); }
 export function onWeightsFilePicked(handler) {
-  $("weights-file-input").addEventListener("change", (e) => handler(e.target.files[0] || null));
+  $("weights-file-input").addEventListener("change", (e) => handler(Array.from(e.target.files || [])));
 }
 export function resetWeightsFileInput() { $("weights-file-input").value = ""; }
+
+// Экран «Состав тела» (шаг 9): 13 строк-показателей с мини-историей и тоном
+// изменения. vm.rows = [{ label, hist, value, delta, tone }].
+export function renderBodycomp(vm) {
+  const card = $("bodycomp-card");
+  card.textContent = "";
+  for (const r of vm.rows) {
+    const row = document.createElement("div");
+    row.className = "m-row";
+    const name = document.createElement("div");
+    name.className = "m-name";
+    name.textContent = r.label;
+    if (r.hist) {
+      const h = document.createElement("span");
+      h.className = "m-hist";
+      h.textContent = r.hist;
+      name.appendChild(h);
+    }
+    row.appendChild(name);
+    const val = document.createElement("div");
+    val.className = "m-val";
+    val.textContent = r.value;
+    row.appendChild(val);
+    if (r.delta != null) {
+      const d = document.createElement("div");
+      d.className = `m-delta ${r.tone}`;
+      d.textContent = r.delta;
+      row.appendChild(d);
+    }
+    card.appendChild(row);
+  }
+}

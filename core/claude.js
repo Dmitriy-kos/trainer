@@ -44,12 +44,12 @@ export async function recognizeFood({ apiKey, image = null, text = null, fetchFn
   return parseFoodResponse(text_);
 }
 
-export async function recognizeWeights({ apiKey, image, fetchFn = globalThis.fetch }) {
-  const content = [
-    { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.base64 } },
-    { type: "text", text: buildWeighPrompt() },
-  ];
-
+export async function recognizeWeights({ apiKey, images, fetchFn = globalThis.fetch }) {
+  const content = images.map((img) => ({
+    type: "image",
+    source: { type: "base64", media_type: img.mediaType, data: img.base64 },
+  }));
+  content.push({ type: "text", text: buildWeighPrompt() });
   const text = await callClaude({ apiKey, content, fetchFn });
   return parseWeighResponse(text);
 }
