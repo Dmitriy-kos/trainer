@@ -96,7 +96,7 @@ export function showTodayError(msg) {
 
 // ---------- Тренировка ----------
 
-export function renderWorkout({ hint, weekLabel, todayDay, resumeLabel, measureLabel, pullupLabel }) {
+export function renderWorkout({ hint, weekLabel, todayDay, resumeLabel, measureLabel, boostLabel, pullupLabel }) {
   $("workout-title").textContent = hint;
   $("workout-week").textContent = weekLabel;
   $("workout-pullup-value").textContent = pullupLabel ?? "";
@@ -113,6 +113,10 @@ export function renderWorkout({ hint, weekLabel, todayDay, resumeLabel, measureL
   const measure = $("workout-measure-tile");
   measure.hidden = !measureLabel;
   if (measureLabel) measure.textContent = measureLabel;
+
+  const boost = $("workout-boost-tile");
+  boost.hidden = !boostLabel;
+  boost.textContent = boostLabel ?? "";
 
   for (const day of ["A", "B", "C"]) {
     $(`btn-day-${day.toLowerCase()}`).classList.toggle("btn-accent", todayDay === day);

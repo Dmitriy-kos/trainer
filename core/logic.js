@@ -81,6 +81,18 @@ export function overtrainingAlert(recentWellbeing) {
   return null;
 }
 
+// Подкачка после бега (программа 2, v3): опция, не план. Показываем ТОЛЬКО в
+// недели 6-7 (внутри программы — 2 и 3: неделя 5 — вход, неделя 8 — разгрузка)
+// и только в беговые дни: Вт (weekday 1) — «руки + пресс» P1, Чт (3) — «плечи +
+// пресс» P2. Возвращает букву дня подкачки или null.
+export function boostDay(programNumber, weekInProgram, weekday) {
+  if (programNumber !== 2) return null;
+  if (weekInProgram !== 2 && weekInProgram !== 3) return null;
+  if (weekday === 1) return "P1";
+  if (weekday === 3) return "P2";
+  return null;
+}
+
 export function programForDate(startDate, today) {
   const deltaDays = Math.round((parseDate(today) - parseDate(startDate)) / DAY_MS);
   const weekAbs = deltaDays < 0 ? 1 : Math.floor(deltaDays / 7) + 1;

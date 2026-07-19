@@ -5,7 +5,7 @@
 // НЕ добавлять в список: tests/, package.json (не деплоятся), сам sw.js
 // (браузер обновляет SW самостоятельно; кэширование sw.js тормозит апдейты).
 
-const CACHE = "trainer-v16"; // менять при каждом релизе, чтобы activate вычистил старый кэш
+const CACHE = "trainer-v17"; // менять при каждом релизе, чтобы activate вычистил старый кэш
 
 const ASSETS = [
   "./",
@@ -27,19 +27,26 @@ const ASSETS = [
   "assets/technique/accessory.png",
   "assets/technique/barbell_row.png",
   "assets/technique/bench.png",
+  "assets/technique/biceps_curl.png",
+  "assets/technique/crunch.png",
   "assets/technique/db_row.png",
+  "assets/technique/db_row_bench.png",
   "assets/technique/deadlift.png",
   "assets/technique/front_squat.png",
   "assets/technique/hanging_leg_raise.png",
   "assets/technique/hollow_hold.png",
   "assets/technique/incline_db.png",
   "assets/technique/lat_pulldown.png",
+  "assets/technique/lateral_raise.png",
+  "assets/technique/leg_raise_floor.png",
   "assets/technique/lunges.png",
   "assets/technique/ohp.png",
   "assets/technique/power_clean.png",
   "assets/technique/pullup.png",
   "assets/technique/push_press.png",
   "assets/technique/rdl.png",
+  "assets/technique/rear_delt.png",
+  "assets/technique/triceps_ext.png",
   "assets/technique/russian_twist.png",
   "assets/technique/squat.png",
   "icons/icon-180.png",

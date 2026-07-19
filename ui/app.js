@@ -2,7 +2,7 @@
 // screens.js отвечает за DOM; этот модуль решает, ЧТО показать и КОГДА писать в БД.
 
 import * as store from "../core/store.js";
-import { autoregulationHint, overtrainingAlert, programForDate, measureTile, pullupDayScheme, restRemaining, formatRest, backupReminder } from "../core/logic.js";
+import { autoregulationHint, overtrainingAlert, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, formatRest, backupReminder } from "../core/logic.js";
 import { parseSetInput, formatLastSets, schemeTargetReps, latestCacheVersion } from "../core/format.js";
 import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS } from "../core/plan.js";
 import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
@@ -27,6 +27,7 @@ const state = {
   historyExpandedId: null, // id сессии, чьи подходы сейчас раскрыты в Истории (одна за раз)
   historyEdit: null,     // {sessionId, exercise} | null — какая строка сейчас редактируется в Истории
   measureProgram: null,  // номер программы, чей день T ещё доступен для замеров («Замеры» плитка); null = не показывать
+  boostDay: null,        // «P1»/«P2», если сегодня беговой день недель 6-7 с опцией подкачки; null = плитку не показывать
   pullupMax: null,       // {value, date} | null — сохранённый максимум строгих подтягиваний
   lastBackupDate: null,  // дата последней резервной копии (meta) — плитка-напоминание на «Сегодня»
   timer: null,           // {startedAt, durationSec} | null — таймер отдыха (ничего не пишет в БД)
@@ -130,7 +131,7 @@ function renderTodayScreen() {
     // Шаг 8: порядок свободный — считаем незакрытые по данным, а не по progressIdx
     // (он теперь курсор «где я», а не счётчик «сколько сделано»).
     const remaining = plan ? sessionRemaining(state.sets, unfinished.id, plan) : 0;
-    const label = unfinished.day === "T" ? "Замеры" : `Силовая ${unfinished.day}`;
+    const label = dayTypeLabel(unfinished.day);
     resumeLabel = `Продолжить: ${label} от ${unfinished.date} (осталось ${remaining} из ${total})`;
   }
 
@@ -179,7 +180,7 @@ function renderWorkoutScreen() {
     // Шаг 8: порядок свободный — считаем незакрытые по данным, а не по progressIdx
     // (он теперь курсор «где я», а не счётчик «сколько сделано»).
     const remaining = plan ? sessionRemaining(state.sets, unfinished.id, plan) : 0;
-    const label = unfinished.day === "T" ? "Замеры" : `Силовая ${unfinished.day}`;
+    const label = dayTypeLabel(unfinished.day);
     resumeLabel = `Продолжить: ${label} от ${unfinished.date} (осталось ${remaining} из ${total})`;
   }
 
@@ -187,12 +188,18 @@ function renderWorkoutScreen() {
   const measureLabel = mt ? "Замеры 📏 — рабочие максимумы месяца" : null;
   state.measureProgram = mt ? mt.programNumber : null;
 
+  state.boostDay = boostDay(number, week, weekday);
+  const boostLabel = state.boostDay
+    ? `Подкачка 💪 после бега — ${state.boostDay === "P1" ? "руки + пресс" : "плечи + пресс"}, 15 мин (по желанию)`
+    : null;
+
   screens.renderWorkout({
     hint,
     weekLabel: `Месяц ${number} · ${program.weekLabels[week]}`,
     todayDay,
     resumeLabel,
     measureLabel,
+    boostLabel,
     pullupLabel: pullupMaxTileLabel(),
   });
 }
@@ -428,6 +435,14 @@ function goHistory() {
 
 // ---------- Силовая сессия ----------
 
+// Человеческое имя типа сессии по букве дня (P1/P2 — подкачки после бега).
+function dayTypeLabel(day) {
+  if (day === "RUN") return "Бег";
+  if (day === "T") return "Замеры";
+  if (day === "P1" || day === "P2") return "Подкачка";
+  return `Силовая ${day}`;
+}
+
 async function onStartStrength(day) {
   const today = todayStr();
   const { number, week } = programForDate(state.programStart, today);
@@ -577,7 +592,7 @@ function buildSessionVm() {
 
   return {
     stepLabel: `Осталось ${remaining} из ${state.exercises.length}`,
-    pillLabel: `${state.session.day === "T" ? "Замеры" : `Силовая ${state.session.day}`} · Неделя ${state.session.week}`,
+    pillLabel: `${dayTypeLabel(state.session.day)} · Неделя ${state.session.week}`,
     strip: state.exercises.map((it, i) => ({ status: statuses[i], here: i === idx, label: stripLabel(it.exercise) })),
     techniqueImg: techniqueImage(item.exercise),
     exercise: item.exercise,
@@ -999,7 +1014,7 @@ async function onFoodRetryPending() {
 // ---------- История ----------
 
 function buildHistoryItemVm(session) {
-  const typeLabel = session.day === "RUN" ? "Бег" : session.day === "T" ? "Замеры" : `Силовая ${session.day}`;
+  const typeLabel = dayTypeLabel(session.day);
   const wellbeingLabel = session.wellbeing != null ? `${session.wellbeing}/10` : "—";
   let subLabel = `Неделя ${session.week} · ${wellbeingLabel}`;
   if (session.status === "open") subLabel += " · не завершена";
@@ -1375,6 +1390,7 @@ function bindEvents() {
   // Экран «Тренировка» — те же обработчики, что раньше висели на today
   // (measure-tile/today-pullup-tile), перевешаны на переехавшие id.
   screens.on("workout-measure-tile", "click", () => guarded(() => onStartStrength("T")));
+  screens.on("workout-boost-tile", "click", () => guarded(() => state.boostDay && onStartStrength(state.boostDay)));
   screens.on("workout-pullup-tile", "click", () => guarded(onWorkoutPullupTap));
   screens.on("workout-resume-tile", "click", () => guarded(onResume));
 
