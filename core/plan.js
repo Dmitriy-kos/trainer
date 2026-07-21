@@ -71,7 +71,7 @@ const PROGRAM_2 = {
       { exercise: "Присед со штангой", orderIdx: 2, scheme: "5×5 (нед. 5: 4×5)", targetRpe: 8, note: "усилие 7→8 по неделям; старт ≈ вес 4×8 месяца 1 + 5%, судья — усилие" },
       { exercise: "Румынская тяга (RDL)", orderIdx: 3, scheme: "3×8 (нед. 5: 2×8)", targetRpe: 7, note: "тяжелее месяца 1" },
       { exercise: "Подтягивания (объёмный день)", orderIdx: 4, scheme: "по прогрессии", targetRpe: 8, note: "лесенка 2 круга — главный день цели 10" },
-      { exercise: "Пресс: подъём ног в висе", orderIdx: 5, scheme: "3×10-12", targetRpe: 7, note: "заодно хват" },
+      { exercise: "Пресс: подъёмы ног лёжа", orderIdx: 5, scheme: "3×12-15", targetRpe: 7, note: "поясница прижата к полу; без виса — хват в дне A уже нагружен clean, RDL и подтягиваниями (решение CEO 21.07.2026)" },
     ],
     B: [
       { exercise: "Жим лёжа", orderIdx: 1, scheme: "5×5", targetRpe: 8, note: "усилие 7→8; +2,5 кг после двух чистых занятий подряд" },
