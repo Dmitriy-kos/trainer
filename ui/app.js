@@ -3,8 +3,8 @@
 
 import * as store from "../core/store.js";
 import { autoregulationHint, overtrainingAlert, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, formatRest, backupReminder } from "../core/logic.js";
-import { parseSetInput, formatLastSets, schemeTargetReps, latestCacheVersion } from "../core/format.js";
-import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS } from "../core/plan.js";
+import { parseSetInput, formatLastSets, schemeTargetReps, latestCacheVersion, humanScheme } from "../core/format.js";
+import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS, globalWeekNumber } from "../core/plan.js";
 import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
 import { latestWeigh, weighDeltas, sortedByDateDesc, daysSince, METRICS, BODYCOMP_METRICS, metricHistory, metricDelta, deltaTone, parseWeighDraft } from "../core/weigh.js";
@@ -582,11 +582,14 @@ function buildSessionVm() {
   }
 
   const isPullup = item.exercise.startsWith("Подтягивания");
-  let schemeLine = `${item.scheme} · усилие ${item.targetRpe}/10`;
+  // Схему показываем словами («5 подходов по 3 повторения»), а вариант «нед. 5»
+  // раскрываем по текущей неделе — на карточке нет скобок и шифровок (CEO 21.07.2026).
+  const gWeek = globalWeekNumber(state.session.program ?? 1, state.session.week);
+  let schemeLine = `${humanScheme(item.scheme, gWeek)} · усилие ${item.targetRpe}/10`;
   let pullupMaxLabel = null;
   if (isPullup) {
     const maxVal = state.pullupMax ? state.pullupMax.value : null;
-    schemeLine = `${pullupDayScheme(state.session.program ?? 1, state.session.week, state.session.day, maxVal)} · усилие ${item.targetRpe}/10`;
+    schemeLine = `${humanScheme(pullupDayScheme(state.session.program ?? 1, state.session.week, state.session.day, maxVal), gWeek)} · усилие ${item.targetRpe}/10`;
     pullupMaxLabel = pullupMaxTileLabel();
   }
 
@@ -1270,7 +1273,7 @@ function renderDemoSession() {
     pillLabel: "Силовая A · Неделя 2",
     techniqueImg: techniqueImage(item.exercise),
     exercise: item.exercise,
-    schemeLine: `${item.scheme} · усилие ${item.targetRpe}/10`,
+    schemeLine: `${humanScheme(item.scheme, 2)} · усилие ${item.targetRpe}/10`,
     note: item.note,
     lastSetsText: formatLastSets(demoLast),
     sameDisabled: false,

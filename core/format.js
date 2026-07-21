@@ -53,6 +53,42 @@ export function latestCacheVersion(keys) {
   return max === null ? null : `v ${max}`;
 }
 
+// ---------- Человеческий текст схемы (решение CEO 21.07.2026) ----------
+// В данных схема хранится компактно («5×3 (нед. 5: 4×3)»), на экране показываем
+// словами: «5 подходов по 3 повторения». Вариант «(нед. N: …)» — сквозной номер
+// недели; если известна текущая неделя, показываем только действующую схему.
+
+function pluralRu(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
+const lastNum = (range) => parseInt(range.split("-").pop(), 10);
+
+function verboseSetsReps(text) {
+  return text
+    .replace(/(\d+(?:-\d+)?)\s*[x×х]\s*(\d+(?:-\d+)?)(\s*с(?=[\s,;.)+]|$))?/g, (m, sets, reps, sec) => {
+      const setsWord = pluralRu(lastNum(sets), "подход", "подхода", "подходов");
+      const repsWord = sec
+        ? pluralRu(lastNum(reps), "секунду", "секунды", "секунд")
+        : pluralRu(lastNum(reps), "повторению", "повторения", "повторений");
+      return `${sets} ${setsWord} по ${reps} ${repsWord}`;
+    })
+    .replace(/\s*\/\s*рука/g, " на каждую руку")
+    .replace(/\s*\/\s*нога/g, " на каждую ногу");
+}
+
+export function humanScheme(scheme, globalWeek) {
+  const m = /^(.*?)\s*\(нед\.\s*(\d+):\s*(.*?)\)\s*$/.exec(scheme || "");
+  if (!m) return verboseSetsReps(scheme || "");
+  const [, base, weekN, override] = m;
+  if (globalWeek == null)
+    return `${verboseSetsReps(base)} (на неделе ${weekN} — ${verboseSetsReps(override)})`;
+  return verboseSetsReps(Number(weekN) === globalWeek ? override : base);
+}
+
 export function schemeTargetReps(scheme) {
   const s = (scheme || "").toLowerCase().replaceAll("х", "x").replaceAll("×", "x");
   const xi = s.indexOf("x");

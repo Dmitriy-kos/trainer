@@ -141,6 +141,17 @@ export function programByNumber(n) {
   return PROGRAMS.find((p) => p.number === n) ?? PROGRAMS[0];
 }
 
+// Сквозной номер недели: неделя 1 программы 2 = неделя 5 (после 4 недель программы 1).
+// Нужен humanScheme() — пометки «нед. 5» в схемах используют сквозную нумерацию.
+export function globalWeekNumber(programNumber, week) {
+  let offset = 0;
+  for (const p of PROGRAMS) {
+    if (p.number === programNumber) break;
+    offset += p.weeks;
+  }
+  return offset + week;
+}
+
 export function planForSession(session) {
   return programByNumber(session.program ?? 1).dayPlans[session.day] ?? null;
 }
