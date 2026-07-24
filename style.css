@@ -87,6 +87,45 @@ body.no-tabbar { padding-bottom: 0; } /* панель скрыта в фокус
 }
 .session-exercise-copy { min-width: 0; }
 .session-eyebrow { color: #8E8E93; font-size: 12px; font-weight: 600; margin-bottom: 3px; }
+.session-scheme-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.session-scheme-chip {
+  border-radius: 100px;
+  padding: 5px 9px;
+  color: #4A4A50;
+  background: #F2F2F7;
+  font-size: 12px;
+  font-weight: 700;
+}
+.session-previous {
+  margin-top: 12px;
+  padding: 11px;
+  border-radius: 14px;
+  background: #F7F9FC;
+}
+.session-previous-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.session-previous .l { color: #8E8E93; font-size: 12px; font-weight: 700; }
+.session-previous-date { color: #AEAEB2; font-size: 11px; font-weight: 600; }
+.session-last-sets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.session-set-chip {
+  border-radius: 10px;
+  padding: 7px 9px;
+  color: #25252A;
+  background: #F2F2F7;
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.session-last-empty { color: #8E8E93; font-size: 14px; font-weight: 700; }
 .session-meta-row {
   display: flex;
   align-items: center;
@@ -198,7 +237,7 @@ p { color: #8E8E93; font-size: 15px; line-height: 1.4; }
 .app-version { position: fixed; left: 8px; bottom: calc(72px + env(safe-area-inset-bottom)); font-size: 10px; color: rgba(60,60,67,.3); pointer-events: none; user-select: none; }
 body.no-tabbar .app-version { bottom: calc(4px + env(safe-area-inset-bottom)); }
 
-/* Сессия v22 «Фокус»: рабочий сценарий целиком в одном мобильном viewport.
+/* Сессия v23 «Фокус»: рабочий сценарий целиком в одном мобильном viewport.
    Полная техника вынесена в слой по кнопке, а таймер получает оставшуюся
    высоту. При открытой клавиатуре браузер может прокрутить поле ввода — это
    системное поведение, не постоянный скролл экрана. */
@@ -227,18 +266,16 @@ body.session-mode .wrap {
 #screen-session .pill { padding: 5px 10px; }
 #screen-session .card.strip { padding: 6px; }
 #screen-session .dot { padding: 5px 2px; }
-#screen-session .session-exercise-card { padding: 13px 14px; }
-#screen-session .session-exercise-card h1 { font-size: 21px; margin-bottom: 3px; }
-#screen-session .session-exercise-card .s {
-  overflow: hidden;
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+#screen-session > .session-exercise-card {
+  flex: 1 1 198px;
+  min-height: 0;
+  padding: 15px;
 }
+#screen-session .session-exercise-card h1 { font-size: 21px; margin-bottom: 3px; }
 #screen-session .session-exercise-card .note {
   display: -webkit-box;
   overflow: hidden;
-  margin-top: 4px;
+  margin-top: 8px;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 1;
 }
@@ -246,9 +283,9 @@ body.session-mode .wrap {
 #screen-session .input-row { min-height: 46px; }
 #screen-session .input-row input { padding: 11px 14px; }
 #screen-session .input-row .btn { padding-top: 11px; padding-bottom: 11px; }
-#screen-session .card.timer {
-  flex: 1 1 132px;
-  min-height: 112px;
+#screen-session > .card.timer {
+  flex: 0 1 239px;
+  min-height: 180px;
   padding: 10px;
 }
 #screen-session .timer-digits { font-size: clamp(48px, 15vw, 62px); }
@@ -263,11 +300,16 @@ body.session-mode .wrap {
   #screen-session .card.strip { padding: 4px 6px; }
   #screen-session .dot { padding: 3px 2px; }
   #screen-session .dot-name { display: none; }
-  #screen-session .session-exercise-card { padding: 10px 12px; }
+  #screen-session > .session-exercise-card { flex-basis: 182px; min-height: 182px; padding: 10px 12px; }
   #screen-session .session-exercise-card h1 { font-size: 19px; }
   #screen-session .session-exercise-card .note { display: none; }
+  #screen-session .session-scheme-chips { margin-top: 5px; }
+  #screen-session .session-scheme-chip { padding: 4px 7px; font-size: 11px; }
+  #screen-session .session-previous { margin-top: 7px; padding: 8px; }
+  #screen-session .session-last-sets { margin-top: 5px; gap: 4px; }
+  #screen-session .session-set-chip { padding: 5px 7px; font-size: 12px; }
   #screen-session .session-meta-row { margin-top: 5px; padding-top: 5px; }
-  #screen-session .card.timer { min-height: 94px; }
+  #screen-session > .card.timer { flex: 1 1 170px; min-height: 150px; }
   #screen-session .grid .btn { min-height: 42px; padding-top: 9px; padding-bottom: 9px; }
 }
 

@@ -324,7 +324,15 @@ export function renderSession(vm, onStripTap) {
   $("session-technique-title").textContent = `Техника: ${vm.exercise}`;
 
   $("session-exercise").textContent = vm.exercise;
-  $("session-scheme").textContent = vm.schemeLine;
+  const schemeWrap = $("session-scheme");
+  schemeWrap.textContent = "";
+  const schemeParts = vm.schemeParts ?? (vm.schemeLine || "").split(" · ").filter(Boolean);
+  for (const text of schemeParts) {
+    const chip = document.createElement("span");
+    chip.className = "session-scheme-chip";
+    chip.textContent = text;
+    schemeWrap.appendChild(chip);
+  }
 
   const noteEl = $("session-note");
   if (vm.note) {
@@ -335,7 +343,30 @@ export function renderSession(vm, onStripTap) {
     noteEl.textContent = "";
   }
 
-  $("session-last-value").textContent = vm.lastSetsText;
+  const lastDate = $("session-last-date");
+  lastDate.textContent = vm.lastDateLabel ?? "";
+  lastDate.hidden = !vm.lastDateLabel;
+
+  const lastValue = $("session-last-value");
+  lastValue.textContent = "";
+  const lastSetLabels = vm.lastSetLabels ?? (
+    vm.lastSetsText && vm.lastSetsText !== "—"
+      ? vm.lastSetsText.split(" · ")
+      : []
+  );
+  if (lastSetLabels.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "session-last-empty";
+    empty.textContent = "—";
+    lastValue.appendChild(empty);
+  } else {
+    for (const text of lastSetLabels) {
+      const chip = document.createElement("span");
+      chip.className = "session-set-chip";
+      chip.textContent = text;
+      lastValue.appendChild(chip);
+    }
+  }
 
   const pm = $("session-pullup-max");
   pm.hidden = vm.pullupMaxLabel == null;

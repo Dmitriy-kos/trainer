@@ -3,7 +3,7 @@
 
 import * as store from "../core/store.js";
 import { autoregulationHint, overtrainingAlert, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, restAlertSecond, formatRest, backupReminder } from "../core/logic.js";
-import { parseSetInput, formatLastSets, schemeTargetReps, latestCacheVersion, humanScheme } from "../core/format.js";
+import { parseSetInput, formatLastSets, formatWorkoutDate, schemeTargetReps, latestCacheVersion, humanScheme } from "../core/format.js";
 import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS, globalWeekNumber } from "../core/plan.js";
 import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
@@ -573,6 +573,9 @@ function buildSessionVm() {
   const statuses = sessionStatuses(state.sets, sid, state.exercises);
   const remaining = statuses.filter((s) => s === "todo").length;
   const last = lastSets(state.sessions, state.sets, item.exercise);
+  const lastSession = last.length > 0
+    ? state.sessions.find((s) => s.id === last[0].sessionId)
+    : null;
 
   let recordedText = null;
   if (statuses[idx] === "skipped") recordedText = "⏭ пропущено";
@@ -604,6 +607,8 @@ function buildSessionVm() {
     pullupMaxLabel,
     note: item.note || "",
     lastSetsText: formatLastSets(last),
+    lastSetLabels: last.map((set) => formatLastSets([set])),
+    lastDateLabel: formatWorkoutDate(lastSession?.date),
     // «Так же» имеет смысл только для ещё не записанного упражнения (ярлык «повторить
     // прошлый раз»). Если статус уже done/skipped/pain — кнопка неактивна, иначе тап по
     // кружку полоски на записанном упражнении может молча затереть сегодняшние числа.
@@ -1274,33 +1279,41 @@ function stopTimer(finished) {
 // что запись где-то заблокирована; шаг-лейбл в новом формате («осталось N из M»).
 function renderDemoSession() {
   const item = {
-    exercise: "Присед со штангой",
-    scheme: "4×8",
-    targetRpe: 7,
-    note: "глубина в комфорте, спина прямая",
+    exercise: "Жим лёжа",
+    scheme: "5×5",
+    targetRpe: 8,
+    note: "лопатки сведены, стопы плотно в пол",
   };
-  const demoLast = [{ weight: 80, reps: 8 }, { weight: 80, reps: 8 }, { weight: 80, reps: 7 }];
+  const demoLast = [
+    { weight: 82.5, reps: 5 },
+    { weight: 82.5, reps: 5 },
+    { weight: 82.5, reps: 5 },
+    { weight: 82.5, reps: 4 },
+    { weight: 80, reps: 5 },
+  ];
 
   screens.showScreen("session");
   screens.renderSession({
-    stepLabel: "Осталось 5 из 5",
-    pillLabel: "Силовая A · Неделя 2",
+    stepLabel: "Осталось 4 из 5",
+    pillLabel: "Силовая B · Неделя 6",
     techniqueImg: techniqueImage(item.exercise),
     exercise: item.exercise,
     schemeLine: `${humanScheme(item.scheme, 2)} · усилие ${item.targetRpe}/10`,
     note: item.note,
     lastSetsText: formatLastSets(demoLast),
+    lastSetLabels: demoLast.map((set) => formatLastSets([set])),
+    lastDateLabel: "ср, 15 июля",
     sameDisabled: false,
     recordedText: null,
     backLabel: "← выйти",
     forwardDisabled: false,
     flash: null,
     strip: [
-      { label: "clean", status: "done", here: false },
-      { label: "присед", status: "todo", here: true },
-      { label: "RDL", status: "todo", here: false },
-      { label: "фронт", status: "todo", here: false },
-      { label: "пресс", status: "todo", here: false },
+      { label: "жим", status: "todo", here: true },
+      { label: "подтяг.", status: "todo", here: false },
+      { label: "OHP", status: "todo", here: false },
+      { label: "тяга", status: "todo", here: false },
+      { label: "наклон.", status: "todo", here: false },
     ],
   });
 }

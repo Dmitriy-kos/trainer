@@ -11,6 +11,25 @@ export function formatLastSets(lastSets) {
   return lastSets.map((s) => `${num(s.weight)}×${num(s.reps)}`).join(" · ");
 }
 
+const SHORT_WEEKDAYS_RU = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+const MONTHS_GENITIVE_RU = [
+  "января", "февраля", "марта", "апреля", "мая", "июня",
+  "июля", "августа", "сентября", "октября", "ноября", "декабря",
+];
+
+export function formatWorkoutDate(isoDate) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate || "");
+  if (!m) return "";
+  const year = Number(m[1]), month = Number(m[2]), day = Number(m[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) return "";
+  return `${SHORT_WEEKDAYS_RU[date.getUTCDay()]}, ${day} ${MONTHS_GENITIVE_RU[month - 1]}`;
+}
+
 function parseGroup(group, original) {
   const xi = group.indexOf("x");
   if (xi < 0) {
