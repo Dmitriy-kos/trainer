@@ -19,6 +19,8 @@ export function showScreen(name) {
   const isTabScreen = TAB_SCREENS.includes(name);
   $("tabbar").hidden = !isTabScreen;
   document.body.classList.toggle("no-tabbar", !isTabScreen);
+  document.body.classList.toggle("session-mode", name === "session");
+  if (name !== "session") $("session-technique").hidden = true;
 }
 
 // active: "today" | "workout" | "food" | "weights" | null (напр. на экране
@@ -308,13 +310,18 @@ export function renderSession(vm, onStripTap) {
 
   const img = $("session-technique-img");
   const techniqueWrap = $("session-technique");
+  const techniqueOpen = $("session-technique-open");
   if (vm.techniqueImg) {
     img.src = vm.techniqueImg;
     img.alt = vm.exercise;
-    techniqueWrap.hidden = false;
+    techniqueOpen.hidden = false;
   } else {
-    techniqueWrap.hidden = true;
+    img.removeAttribute("src");
+    img.alt = "";
+    techniqueOpen.hidden = true;
   }
+  techniqueWrap.hidden = true;
+  $("session-technique-title").textContent = `Техника: ${vm.exercise}`;
 
   $("session-exercise").textContent = vm.exercise;
   $("session-scheme").textContent = vm.schemeLine;
@@ -358,6 +365,15 @@ export function renderSession(vm, onStripTap) {
   renderFlash($("session-flash"), vm.flash);
 }
 
+export function showSessionTechnique(open) {
+  const overlay = $("session-technique");
+  const trigger = $("session-technique-open");
+  if (open && trigger.hidden) return;
+  overlay.hidden = !open;
+  if (open) $("session-technique-close").focus();
+  else trigger.focus();
+}
+
 function renderStrip(strip, onStripTap) {
   const wrap = $("session-strip");
   const items = strip ?? [];
@@ -367,6 +383,7 @@ function renderStrip(strip, onStripTap) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = it.here ? "dot here" : `dot st-${it.status}`;
+    b.setAttribute("aria-label", `${it.label}: ${it.here ? "текущее" : STRIP_STATUS_LABEL[it.status]}`);
     const icon = document.createElement("span");
     icon.className = "dot-icon";
     icon.textContent = it.here ? "●" : STRIP_ICON[it.status];
@@ -381,6 +398,7 @@ function renderStrip(strip, onStripTap) {
 }
 
 const STRIP_ICON = { done: "✓", skipped: "⏭", pain: "🚑", todo: "○" };
+const STRIP_STATUS_LABEL = { done: "выполнено", skipped: "пропущено", pain: "боль", todo: "не выполнено" };
 
 export function renderTimer(state) {
   const tile = $("session-timer");

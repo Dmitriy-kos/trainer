@@ -36,8 +36,70 @@ body.no-tabbar { padding-bottom: 0; } /* панель скрыта в фокус
 .mini .l { font-size: 12px; color: #8E8E93; font-weight: 600; margin-bottom: 6px; }
 .mini .v { font-size: 19px; font-weight: 800; letter-spacing: -.01em; }
 
-.card.technique { padding: 0; overflow: hidden; }
-.card.technique img { width: 100%; display: block; }
+.technique-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+  background: rgba(11, 11, 15, .55);
+}
+.technique-sheet {
+  width: min(480px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, .22);
+}
+.technique-sheet-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, .94);
+  border-bottom: 1px solid #EFEFF4;
+}
+.technique-close, .technique-open {
+  border: 0;
+  border-radius: 100px;
+  padding: 8px 12px;
+  color: #0A84FF;
+  background: #E5F0FF;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.technique-sheet img { width: 100%; display: block; }
+
+.session-exercise-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.session-exercise-copy { min-width: 0; }
+.session-eyebrow { color: #8E8E93; font-size: 12px; font-weight: 600; margin-bottom: 3px; }
+.session-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #EFEFF4;
+}
+.session-meta-row .l { flex: 0 0 auto; color: #8E8E93; font-size: 12px; font-weight: 600; }
+.session-meta-row .v { min-width: 0; overflow: hidden; font-size: 16px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.session-meta-button { border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 
 .flash { padding: 14px 18px; color: #8E8E93; font-size: 14px; line-height: 1.4; }
 .flash.danger { color: #FF3B30; font-weight: 600; }
@@ -78,12 +140,18 @@ body.no-tabbar { padding-bottom: 0; } /* панель скрыта в фокус
 
 @keyframes timer-alert-pulse {
   0%, 100% { background: #fff; color: #0B0B0F; transform: scale(1); }
-  35%, 70% { background: #FFD60A; color: #0B0B0F; transform: scale(1.018); }
+  35%, 70% { background: #FF3B30; color: #fff; transform: scale(1.018); }
+}
+@keyframes timer-alert-label-pulse {
+  0%, 100% { color: #8E8E93; }
+  35%, 70% { color: rgba(255,255,255,.84); }
 }
 .card.timer.alerting { animation: timer-alert-pulse .72s ease-in-out; }
+.card.timer.alerting .l { animation: timer-alert-label-pulse .72s ease-in-out; }
 
 @media (prefers-reduced-motion: reduce) {
-  .card.timer.alerting { animation: none; background: #FFD60A; color: #0B0B0F; }
+  .card.timer.alerting { animation: none; background: #FF3B30; color: #fff; }
+  .card.timer.alerting .l { animation: none; color: rgba(255,255,255,.84); }
 }
 
 p { color: #8E8E93; font-size: 15px; line-height: 1.4; }
@@ -129,6 +197,79 @@ p { color: #8E8E93; font-size: 15px; line-height: 1.4; }
    Поднят над панелью вкладок; когда панель скрыта (body.no-tabbar) — возвращается вниз. */
 .app-version { position: fixed; left: 8px; bottom: calc(72px + env(safe-area-inset-bottom)); font-size: 10px; color: rgba(60,60,67,.3); pointer-events: none; user-select: none; }
 body.no-tabbar .app-version { bottom: calc(4px + env(safe-area-inset-bottom)); }
+
+/* Сессия v22 «Фокус»: рабочий сценарий целиком в одном мобильном viewport.
+   Полная техника вынесена в слой по кнопке, а таймер получает оставшуюся
+   высоту. При открытой клавиатуре браузер может прокрутить поле ввода — это
+   системное поведение, не постоянный скролл экрана. */
+body.session-mode .wrap {
+  height: calc(100vh - env(safe-area-inset-top));
+  height: calc(100dvh - env(safe-area-inset-top));
+  padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
+}
+#screen-session {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#screen-session[hidden] { display: none !important; }
+#screen-session > .hd,
+#screen-session > .card,
+#screen-session > .grid,
+#screen-session > .input-row,
+#screen-session > .error {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+}
+#screen-session > .hd { margin: 0 4px; min-height: 34px; }
+#screen-session .pill { padding: 5px 10px; }
+#screen-session .card.strip { padding: 6px; }
+#screen-session .dot { padding: 5px 2px; }
+#screen-session .session-exercise-card { padding: 13px 14px; }
+#screen-session .session-exercise-card h1 { font-size: 21px; margin-bottom: 3px; }
+#screen-session .session-exercise-card .s {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#screen-session .session-exercise-card .note {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 4px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+#screen-session .session-meta-row { margin-top: 7px; padding-top: 7px; }
+#screen-session .input-row { min-height: 46px; }
+#screen-session .input-row input { padding: 11px 14px; }
+#screen-session .input-row .btn { padding-top: 11px; padding-bottom: 11px; }
+#screen-session .card.timer {
+  flex: 1 1 132px;
+  min-height: 112px;
+  padding: 10px;
+}
+#screen-session .timer-digits { font-size: clamp(48px, 15vw, 62px); }
+#screen-session .grid .btn { min-height: 46px; padding-top: 11px; padding-bottom: 11px; }
+#screen-session .rest-presets { flex-basis: 46px; }
+#screen-session .rest-presets .btn { font-size: 17px; }
+
+@media (max-height: 720px) {
+  body.session-mode .wrap { padding-top: 5px; }
+  #screen-session { gap: 6px; }
+  #screen-session > .hd { min-height: 30px; }
+  #screen-session .card.strip { padding: 4px 6px; }
+  #screen-session .dot { padding: 3px 2px; }
+  #screen-session .dot-name { display: none; }
+  #screen-session .session-exercise-card { padding: 10px 12px; }
+  #screen-session .session-exercise-card h1 { font-size: 19px; }
+  #screen-session .session-exercise-card .note { display: none; }
+  #screen-session .session-meta-row { margin-top: 5px; padding-top: 5px; }
+  #screen-session .card.timer { min-height: 94px; }
+  #screen-session .grid .btn { min-height: 42px; padding-top: 9px; padding-bottom: 9px; }
+}
 
 /* Полоска статусов упражнений сессии (Шаг 8): свободный порядок — видно, что
    записано, что пропущено, что осталось; тап по кружку = переход. */

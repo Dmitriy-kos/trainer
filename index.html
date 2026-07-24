@@ -93,29 +93,41 @@
 
     <div class="card flash" id="session-flash" hidden></div>
 
-    <div class="card technique" id="session-technique" hidden>
-      <img id="session-technique-img" alt="">
+    <div class="technique-overlay" id="session-technique" hidden>
+      <div class="technique-sheet" role="dialog" aria-modal="true" aria-labelledby="session-technique-title">
+        <div class="technique-sheet-head">
+          <strong id="session-technique-title">Техника упражнения</strong>
+          <button type="button" class="technique-close" id="session-technique-close" aria-label="Закрыть технику">Готово</button>
+        </div>
+        <img id="session-technique-img" alt="">
+      </div>
     </div>
 
-    <div class="card big">
-      <h1 id="session-exercise"></h1>
+    <div class="card big session-exercise-card">
+      <div class="session-exercise-head">
+        <div class="session-exercise-copy">
+          <div class="session-eyebrow">Текущее упражнение</div>
+          <h1 id="session-exercise"></h1>
+        </div>
+        <button type="button" class="technique-open" id="session-technique-open" hidden>Техника</button>
+      </div>
       <div class="s" id="session-scheme"></div>
       <div class="note" id="session-note" hidden></div>
-    </div>
 
-    <div class="card mini" id="session-last">
-      <div class="l">Прошлый раз</div>
-      <div class="v" id="session-last-value"></div>
-    </div>
+      <div class="session-meta-row" id="session-last">
+        <div class="l">Прошлый раз</div>
+        <div class="v" id="session-last-value"></div>
+      </div>
 
-    <button type="button" class="card mini card-btn" id="session-pullup-max" hidden>
-      <div class="l">Максимум подтягиваний</div>
-      <div class="v" id="session-pullup-max-value"></div>
-    </button>
+      <button type="button" class="session-meta-row session-meta-button" id="session-pullup-max" hidden>
+        <div class="l">Максимум подтягиваний</div>
+        <div class="v" id="session-pullup-max-value"></div>
+      </button>
 
-    <div class="card mini" id="session-recorded" hidden>
-      <div class="l">Записано</div>
-      <div class="v" id="session-recorded-value"></div>
+      <div class="session-meta-row" id="session-recorded" hidden>
+        <div class="l">Записано</div>
+        <div class="v" id="session-recorded-value"></div>
+      </div>
     </div>
 
     <div class="input-row" id="session-input-row">
