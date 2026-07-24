@@ -384,10 +384,24 @@ const STRIP_ICON = { done: "✓", skipped: "⏭", pain: "🚑", todo: "○" };
 
 export function renderTimer(state) {
   const tile = $("session-timer");
-  if (!state) { tile.hidden = true; tile.classList.remove("done"); return; }
-  tile.hidden = false;
+  if (!state) return;
   tile.classList.toggle("done", state.done);
+  $("session-timer-label").textContent = state.label;
   $("session-timer-value").textContent = state.text;
+  tile.setAttribute("aria-label", state.ariaLabel);
+
+  // Один новый CSS-импульс на каждый порог. На 5→4→3→2→1 класс формально
+  // остаётся тем же, поэтому принудительно перезапускаем animation только при
+  // смене секунды; повторный тик внутри той же секунды ничего не делает.
+  const alertKey = state.alertSecond == null ? "" : String(state.alertSecond);
+  if (tile.dataset.alertSecond !== alertKey) {
+    tile.classList.remove("alerting");
+    if (alertKey) {
+      void tile.offsetWidth;
+      tile.classList.add("alerting");
+    }
+    tile.dataset.alertSecond = alertKey;
+  }
 }
 
 export function showSessionError(msg) {
