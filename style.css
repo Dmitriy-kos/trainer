@@ -61,9 +61,30 @@ body.no-tabbar { padding-bottom: 0; } /* панель скрыта в фокус
 
 .error { color: #FF3B30; font-size: 13px; font-weight: 600; margin: 0 4px 12px; }
 
-.card.timer { text-align: center; }
+.card.timer {
+  text-align: center;
+  min-height: 132px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: background-color .18s, color .18s, transform .18s;
+}
+.card.timer .l { font-size: 12px; color: #8E8E93; font-weight: 700; margin-bottom: 4px; }
 .timer-digits { font-size: 56px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .card.timer.done { background: #0A84FF; color: #fff; }
+.card.timer.done .l { color: #cfe4ff; }
+.rest-presets .btn { font-size: 18px; }
+
+@keyframes timer-alert-pulse {
+  0%, 100% { background: #fff; color: #0B0B0F; transform: scale(1); }
+  35%, 70% { background: #FFD60A; color: #0B0B0F; transform: scale(1.018); }
+}
+.card.timer.alerting { animation: timer-alert-pulse .72s ease-in-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .card.timer.alerting { animation: none; background: #FFD60A; color: #0B0B0F; }
+}
 
 p { color: #8E8E93; font-size: 15px; line-height: 1.4; }
 

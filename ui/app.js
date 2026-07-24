@@ -2,7 +2,7 @@
 // screens.js отвечает за DOM; этот модуль решает, ЧТО показать и КОГДА писать в БД.
 
 import * as store from "../core/store.js";
-import { autoregulationHint, overtrainingAlert, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, formatRest, backupReminder } from "../core/logic.js";
+import { autoregulationHint, overtrainingAlert, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, restAlertSecond, formatRest, backupReminder } from "../core/logic.js";
 import { parseSetInput, formatLastSets, schemeTargetReps, latestCacheVersion, humanScheme } from "../core/format.js";
 import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS, globalWeekNumber } from "../core/plan.js";
 import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
@@ -14,6 +14,7 @@ import { compressImage } from "./image.js";
 import * as screens from "./screens.js";
 
 const DEFAULT_PROGRAM_START = "2026-06-22";
+const DEFAULT_REST_DURATION = 120;
 
 const state = {
   sessions: [],
@@ -30,7 +31,7 @@ const state = {
   boostDay: null,        // «P1»/«P2», если сегодня беговой день недель 6-7 с опцией подкачки; null = плитку не показывать
   pullupMax: null,       // {value, date} | null — сохранённый максимум строгих подтягиваний
   lastBackupDate: null,  // дата последней резервной копии (meta) — плитка-напоминание на «Сегодня»
-  timer: null,           // {startedAt, durationSec} | null — таймер отдыха (ничего не пишет в БД)
+  timer: { startedAt: null, durationSec: DEFAULT_REST_DURATION, running: false, finished: false },
   food: [],             // записи еды (все даты), зеркало store
   apiKey: null,          // ключ Claude API — только в meta, в бэкап не попадает
   foodGoals: { ...DEFAULT_GOALS }, // {kcal, protein} — цели дня, редактируются в настройках
@@ -1232,14 +1233,20 @@ function beep() {
 }
 
 function tickTimer() {
-  if (!state.timer) return;
+  if (!state.timer.running) return;
   const left = restRemaining(state.timer.startedAt, state.timer.durationSec, Date.now());
-  screens.renderTimer({ text: formatRest(left), done: left === 0 });
+  screens.renderTimer({
+    text: formatRest(left),
+    label: "Отдых",
+    ariaLabel: `Таймер отдыха: осталось ${formatRest(left)}`,
+    done: false,
+    alertSecond: restAlertSecond(state.timer.durationSec, left),
+  });
   if (left === 0) stopTimer(true);
 }
 
 function startTimer(durationSec) {
-  state.timer = { startedAt: Date.now(), durationSec };
+  state.timer = { startedAt: Date.now(), durationSec, running: true, finished: false };
   clearInterval(timerInterval);
   timerInterval = setInterval(tickTimer, 500);
   audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -1249,9 +1256,16 @@ function startTimer(durationSec) {
 function stopTimer(finished) {
   clearInterval(timerInterval);
   timerInterval = null;
-  state.timer = null;
-  if (finished) beep(); // плитка остаётся с 0:00 и подсветкой до следующего действия
-  else screens.renderTimer(null);
+  const durationSec = finished ? state.timer.durationSec : DEFAULT_REST_DURATION;
+  state.timer = { startedAt: null, durationSec, running: false, finished };
+  screens.renderTimer({
+    text: formatRest(durationSec),
+    label: finished ? "Готово · нажми повторить" : "Отдых · нажми запустить",
+    ariaLabel: `${finished ? "Повторить" : "Запустить"} таймер отдыха на ${formatRest(durationSec)}`,
+    done: finished,
+    alertSecond: null,
+  });
+  if (finished) beep();
 }
 
 // ---------- Демо-режим для скриншотов (без записи в БД) ----------
@@ -1413,9 +1427,7 @@ function bindEvents() {
   // бы, пока идёт запись подхода).
   screens.on("btn-rest-1", "click", () => startTimer(60));
   screens.on("btn-rest-90", "click", () => startTimer(90));
-  screens.on("btn-rest-2", "click", () => startTimer(120));
-  screens.on("btn-rest-3", "click", () => startTimer(180));
-  screens.on("session-timer", "click", () => stopTimer(false));
+  screens.on("session-timer", "click", () => startTimer(state.timer.durationSec));
 
   screens.on("wellbeing-skip", "click", () => guarded(onWellbeingSkip));
   screens.on("done-back", "click", goToday);

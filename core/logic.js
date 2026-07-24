@@ -126,6 +126,15 @@ export function restRemaining(startedAtMs, durationSec, nowMs) {
   return Math.max(0, left);
 }
 
+const REST_ALERT_SECONDS = new Set([60, 30, 20, 15, 10, 5, 4, 3, 2, 1]);
+
+// Возвращает секунду-порог для визуального импульса. Стартовое значение не
+// считаем порогом: минутный таймер не должен мигать сразу после нажатия.
+export function restAlertSecond(durationSec, leftSec) {
+  if (leftSec >= durationSec) return null;
+  return REST_ALERT_SECONDS.has(leftSec) ? leftSec : null;
+}
+
 export function formatRest(sec) {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 }
