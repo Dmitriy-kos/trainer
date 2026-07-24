@@ -124,17 +124,13 @@
     </div>
     <div class="error" id="session-error" hidden></div>
 
-    <button type="button" class="card card-btn timer" id="session-timer" hidden>
-      <div class="l">Отдых</div>
-      <div class="timer-digits" id="session-timer-value"></div>
+    <button type="button" class="card card-btn timer" id="session-timer" aria-label="Запустить таймер отдыха на 2 минуты">
+      <div class="l" id="session-timer-label">Отдых · нажми запустить</div>
+      <div class="timer-digits" id="session-timer-value">2:00</div>
     </button>
-    <div class="grid grid2">
-      <button type="button" class="btn" id="btn-rest-1">Отдых 1:00</button>
-      <button type="button" class="btn" id="btn-rest-90">Отдых 1:30</button>
-    </div>
-    <div class="grid grid2">
-      <button type="button" class="btn" id="btn-rest-2">Отдых 2:00</button>
-      <button type="button" class="btn" id="btn-rest-3">Отдых 3:00</button>
+    <div class="grid grid2 rest-presets">
+      <button type="button" class="btn" id="btn-rest-1" aria-label="Запустить таймер отдыха на 1 минуту">1:00</button>
+      <button type="button" class="btn" id="btn-rest-90" aria-label="Запустить таймер отдыха на 1 минуту 30 секунд">1:30</button>
     </div>
 
     <!-- Кнопка «Больно 🚑» убрана по решению CEO 10.07.2026 (не актуальна).
