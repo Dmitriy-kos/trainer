@@ -1295,6 +1295,13 @@ function renderDemoSession() {
     backLabel: "← выйти",
     forwardDisabled: false,
     flash: null,
+    strip: [
+      { label: "clean", status: "done", here: false },
+      { label: "присед", status: "todo", here: true },
+      { label: "RDL", status: "todo", here: false },
+      { label: "фронт", status: "todo", here: false },
+      { label: "пресс", status: "todo", here: false },
+    ],
   });
 }
 
@@ -1386,7 +1393,13 @@ async function guarded(fn) {
   try { await fn(); } finally { busy = false; }
 }
 
+function bindSessionTechniqueEvents() {
+  screens.on("session-technique-open", "click", () => screens.showSessionTechnique(true));
+  screens.on("session-technique-close", "click", () => screens.showSessionTechnique(false));
+}
+
 function bindEvents() {
+  bindSessionTechniqueEvents();
   screens.on("btn-day-a", "click", () => guarded(() => onStartStrength("A")));
   screens.on("btn-day-b", "click", () => guarded(() => onStartStrength("B")));
   screens.on("btn-day-c", "click", () => guarded(() => onStartStrength("C")));
@@ -1466,6 +1479,7 @@ async function init() {
 
   const params = new URLSearchParams(location.search);
   if (params.get("screen") === "session-demo") {
+    bindEvents();
     renderDemoSession();
     return;
   }
