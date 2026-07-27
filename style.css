@@ -237,18 +237,17 @@ p { color: #8E8E93; font-size: 15px; line-height: 1.4; }
 .app-version { position: fixed; left: 8px; bottom: calc(72px + env(safe-area-inset-bottom)); font-size: 10px; color: rgba(60,60,67,.3); pointer-events: none; user-select: none; }
 body.no-tabbar .app-version { bottom: calc(4px + env(safe-area-inset-bottom)); }
 
-/* Сессия v23 «Фокус»: рабочий сценарий целиком в одном мобильном viewport.
-   Полная техника вынесена в слой по кнопке, а таймер получает оставшуюся
-   высоту. При открытой клавиатуре браузер может прокрутить поле ввода — это
-   системное поведение, не постоянный скролл экрана. */
+/* Сессия v24: карточка упражнения никогда не ужимает и не обрезает данные.
+   На высокой высоте таймер заполняет остаток экрана; если описание или прошлые
+   подходы длинные, естественно прокручивается весь экран без перекрытий. */
 body.session-mode .wrap {
-  height: calc(100vh - env(safe-area-inset-top));
-  height: calc(100dvh - env(safe-area-inset-top));
+  min-height: calc(100vh - env(safe-area-inset-top));
+  min-height: calc(100dvh - env(safe-area-inset-top));
   padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
 }
 #screen-session {
-  height: 100%;
-  min-height: 0;
+  min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 20px);
+  min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 20px);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -267,24 +266,23 @@ body.session-mode .wrap {
 #screen-session .card.strip { padding: 6px; }
 #screen-session .dot { padding: 5px 2px; }
 #screen-session > .session-exercise-card {
-  flex: 1 1 198px;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: auto;
   padding: 15px;
 }
 #screen-session .session-exercise-card h1 { font-size: 21px; margin-bottom: 3px; }
 #screen-session .session-exercise-card .note {
-  display: -webkit-box;
-  overflow: hidden;
+  display: block;
+  overflow: visible;
   margin-top: 8px;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
+  overflow-wrap: anywhere;
 }
 #screen-session .session-meta-row { margin-top: 7px; padding-top: 7px; }
 #screen-session .input-row { min-height: 46px; }
 #screen-session .input-row input { padding: 11px 14px; }
 #screen-session .input-row .btn { padding-top: 11px; padding-bottom: 11px; }
 #screen-session > .card.timer {
-  flex: 0 1 239px;
+  flex: 1 0 180px;
   min-height: 180px;
   padding: 10px;
 }
@@ -300,16 +298,16 @@ body.session-mode .wrap {
   #screen-session .card.strip { padding: 4px 6px; }
   #screen-session .dot { padding: 3px 2px; }
   #screen-session .dot-name { display: none; }
-  #screen-session > .session-exercise-card { flex-basis: 182px; min-height: 182px; padding: 10px 12px; }
+  #screen-session > .session-exercise-card { flex: 0 0 auto; min-height: auto; padding: 10px 12px; }
   #screen-session .session-exercise-card h1 { font-size: 19px; }
-  #screen-session .session-exercise-card .note { display: none; }
+  #screen-session .session-exercise-card .note { display: block; }
   #screen-session .session-scheme-chips { margin-top: 5px; }
   #screen-session .session-scheme-chip { padding: 4px 7px; font-size: 11px; }
   #screen-session .session-previous { margin-top: 7px; padding: 8px; }
   #screen-session .session-last-sets { margin-top: 5px; gap: 4px; }
   #screen-session .session-set-chip { padding: 5px 7px; font-size: 12px; }
   #screen-session .session-meta-row { margin-top: 5px; padding-top: 5px; }
-  #screen-session > .card.timer { flex: 1 1 170px; min-height: 150px; }
+  #screen-session > .card.timer { flex: 1 0 150px; min-height: 150px; }
   #screen-session .grid .btn { min-height: 42px; padding-top: 9px; padding-bottom: 9px; }
 }
 

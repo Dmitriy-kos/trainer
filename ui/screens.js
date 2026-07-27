@@ -439,6 +439,16 @@ export function renderTimer(state) {
   $("session-timer-value").textContent = state.text;
   tile.setAttribute("aria-label", state.ariaLabel);
 
+  const presetButtons = [$("btn-rest-a"), $("btn-rest-b")];
+  for (const [index, durationSec] of (state.presetDurations ?? []).entries()) {
+    const button = presetButtons[index];
+    if (!button) break;
+    const text = `${Math.floor(durationSec / 60)}:${String(durationSec % 60).padStart(2, "0")}`;
+    button.textContent = text;
+    button.dataset.duration = String(durationSec);
+    button.setAttribute("aria-label", `Запустить таймер отдыха на ${text}`);
+  }
+
   // Один новый CSS-импульс на каждый порог. На 5→4→3→2→1 класс формально
   // остаётся тем же, поэтому принудительно перезапускаем animation только при
   // смене секунды; повторный тик внутри той же секунды ничего не делает.

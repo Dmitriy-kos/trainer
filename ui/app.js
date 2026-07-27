@@ -2,7 +2,7 @@
 // screens.js отвечает за DOM; этот модуль решает, ЧТО показать и КОГДА писать в БД.
 
 import * as store from "../core/store.js";
-import { autoregulationHint, overtrainingAlert, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, restAlertSecond, formatRest, backupReminder } from "../core/logic.js";
+import { autoregulationHint, overtrainingAlert, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, restAlertSecond, formatRest, restPresetDurations, backupReminder } from "../core/logic.js";
 import { parseSetInput, formatLastSets, formatWorkoutDate, schemeTargetReps, latestCacheVersion, humanScheme } from "../core/format.js";
 import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS, globalWeekNumber } from "../core/plan.js";
 import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
@@ -1246,6 +1246,7 @@ function tickTimer() {
     ariaLabel: `Таймер отдыха: осталось ${formatRest(left)}`,
     done: false,
     alertSecond: restAlertSecond(state.timer.durationSec, left),
+    presetDurations: restPresetDurations(state.timer.durationSec),
   });
   if (left === 0) stopTimer(true);
 }
@@ -1269,6 +1270,7 @@ function stopTimer(finished) {
     ariaLabel: `${finished ? "Повторить" : "Запустить"} таймер отдыха на ${formatRest(durationSec)}`,
     done: finished,
     alertSecond: null,
+    presetDurations: restPresetDurations(durationSec),
   });
   if (finished) beep();
 }
@@ -1279,17 +1281,17 @@ function stopTimer(finished) {
 // что запись где-то заблокирована; шаг-лейбл в новом формате («осталось N из M»).
 function renderDemoSession() {
   const item = {
-    exercise: "Жим лёжа",
-    scheme: "5×5",
-    targetRpe: 8,
-    note: "лопатки сведены, стопы плотно в пол",
+    exercise: "Взятие на грудь (power clean)",
+    scheme: "5×3",
+    targetRpe: 7,
+    note: "первым — техника и взрыв; вес растёт только при чистом движении без потери скорости",
   };
   const demoLast = [
-    { weight: 82.5, reps: 5 },
-    { weight: 82.5, reps: 5 },
-    { weight: 82.5, reps: 5 },
-    { weight: 82.5, reps: 4 },
-    { weight: 80, reps: 5 },
+    { weight: 45, reps: 3 },
+    { weight: 45, reps: 3 },
+    { weight: 45, reps: 3 },
+    { weight: 48, reps: 3 },
+    { weight: 48, reps: 3 },
   ];
 
   screens.showScreen("session");
@@ -1451,8 +1453,9 @@ function bindEvents() {
 
   // Таймер отдыха ничего не пишет в БД — без guarded (иначе тап блокировался
   // бы, пока идёт запись подхода).
-  screens.on("btn-rest-1", "click", () => startTimer(60));
-  screens.on("btn-rest-90", "click", () => startTimer(90));
+  for (const id of ["btn-rest-a", "btn-rest-b"]) {
+    screens.on(id, "click", (event) => startTimer(Number(event.currentTarget.dataset.duration)));
+  }
   screens.on("session-timer", "click", () => startTimer(state.timer.durationSec));
 
   screens.on("wellbeing-skip", "click", () => guarded(onWellbeingSkip));
