@@ -2,7 +2,7 @@
 // screens.js отвечает за DOM; этот модуль решает, ЧТО показать и КОГДА писать в БД.
 
 import * as store from "../core/store.js";
-import { autoregulationHint, overtrainingAlert, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, restAlertSecond, formatRest, restPresetDurations, backupReminder } from "../core/logic.js";
+import { autoregulationHint, overtrainingAlert, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, restAlertSecond, formatRest, withActualEffort, restPresetDurations, backupReminder } from "../core/logic.js";
 import { parseSetInput, formatLastSets, formatWorkoutDate, schemeTargetReps, latestCacheVersion, humanScheme } from "../core/format.js";
 import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS, globalWeekNumber } from "../core/plan.js";
 import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
@@ -27,6 +27,8 @@ const state = {
   runSession: null,       // сессия только что записанного бега, пока открыт экран деталей
   historyExpandedId: null, // id сессии, чьи подходы сейчас раскрыты в Истории (одна за раз)
   historyEdit: null,     // {sessionId, exercise} | null — какая строка сейчас редактируется в Истории
+  pendingEffort: null,   // сохранённый вопрос об усилии — переживает закрытие PWA
+  effortDraft: null,     // pendingEffort + строки подходов для открытого вопроса
   measureProgram: null,  // номер программы, чей день T ещё доступен для замеров («Замеры» плитка); null = не показывать
   boostDay: null,        // «P1»/«P2», если сегодня беговой день недель 6-7 с опцией подкачки; null = плитку не показывать
   pullupMax: null,       // {value, date} | null — сохранённый максимум строгих подтягиваний
@@ -508,6 +510,7 @@ async function openSessionFlow(session) {
     goWellbeing();
     return;
   }
+  if (await restorePendingEffort(session)) return;
   if (sessionRemaining(state.sets, session.id, state.exercises) === 0) {
     // Все упражнения отмечены, самочувствие ещё не спросили — типичный «закрыли
     // приложение между последним подходом и экраном самочувствия».
@@ -520,6 +523,28 @@ async function openSessionFlow(session) {
     : nextTodoIdx(state.sets, session.id, state.exercises, saved) ?? saved;
   screens.showScreen("session");
   renderSessionScreen();
+}
+
+// Если приложение закрыли уже после записи подходов, но до ответа 1–10,
+// восстанавливаем именно этот обязательный вопрос. Так последний exercise не
+// перескакивает сразу на самочувствие, а фактическая нагрузка не теряется.
+async function restorePendingEffort(session) {
+  const pending = state.pendingEffort;
+  if (!pending || pending.sessionId !== session.id) return false;
+  const idx = state.exercises.findIndex((item) => item.exercise === pending.exercise);
+  const rows = sessionExerciseSets(state.sets, session.id, pending.exercise)
+    .filter((row) => !row.painFlag && !row.skipFlag);
+  if (idx < 0 || rows.length === 0) {
+    state.pendingEffort = null;
+    await store.setMeta("pendingEffort", null);
+    return false;
+  }
+  state.cursorIdx = idx;
+  state.effortDraft = { ...pending, rows };
+  screens.showScreen("session");
+  renderSessionScreen();
+  screens.showSessionEffort({ exercise: pending.exercise });
+  return true;
 }
 
 function currentItem() {
@@ -583,6 +608,8 @@ function buildSessionVm() {
   else if (statuses[idx] === "done") {
     const rec = sessionExerciseSets(state.sets, sid, item.exercise).filter((s) => !s.painFlag && !s.skipFlag);
     recordedText = "✓ " + formatLastSets(rec);
+    const actual = rec.find((s) => s.rpeActual === 1)?.rpe;
+    if (actual != null) recordedText += ` · усилие ${actual}/10`;
   }
 
   const isPullup = item.exercise.startsWith("Подтягивания");
@@ -687,30 +714,19 @@ async function onSubmit() {
 
   const rows = parsed.map((p, i) => ({
     sessionId: state.session.id, exercise: item.exercise,
-    setIdx: i + 1, weight: p.weight, reps: p.reps, rpe: item.targetRpe, painFlag: 0, skipFlag: 0,
+    setIdx: i + 1, weight: p.weight, reps: p.reps,
+    rpe: null, targetRpe: item.targetRpe, rpeActual: 0, painFlag: 0, skipFlag: 0,
   }));
-  const wasTodo = await recordExercise(item.exercise, rows);
 
-  if (wasTodo) {
-    // Автогуляция считается по введённым повторам с целевым усилием (не фактическим) —
-    // так же, как записанный rpe каждого сета. При исправлении уже записанного не
-    // пересчитывается: там правка, а не новый подход.
-    const loggedForHint = parsed.map((p) => ({ reps: p.reps, rpe: item.targetRpe }));
-    const hint = autoregulationHint(schemeTargetReps(item.scheme), item.targetRpe, loggedForHint);
-    if (hint) state.flash = { icon: "💡", text: hint, danger: false };
-  } else {
-    state.flash = { icon: "✏️", text: "Исправлено", danger: false };
-  }
-
+  let postFlash = null;
   if (state.session.day === "T" && item.exercise.startsWith("Подтягивания") && parsed.length > 0) {
     const best = Math.max(...parsed.map((p) => p.reps));
     state.pullupMax = { value: best, date: todayStr() };
     await store.setMeta("pullupMax", state.pullupMax);
-    state.flash = { icon: "🎯", text: `Максимум подтягиваний обновлён: ${best}`, danger: false };
+    postFlash = { icon: "🎯", text: `Максимум подтягиваний обновлён: ${best}`, danger: false };
   }
 
-  if (wasTodo) await advanceAfterRecord();
-  else renderSessionScreen();
+  await beginEffortCapture(item, rows, postFlash);
 }
 
 async function onSame() {
@@ -722,13 +738,50 @@ async function onSame() {
   if (last.length === 0) return;
   const rows = last.map((s) => ({
     sessionId: state.session.id, exercise: item.exercise,
-    setIdx: s.setIdx, weight: s.weight, reps: s.reps, rpe: item.targetRpe, painFlag: 0, skipFlag: 0,
+    setIdx: s.setIdx, weight: s.weight, reps: s.reps,
+    rpe: null, targetRpe: item.targetRpe, rpeActual: 0, painFlag: 0, skipFlag: 0,
   }));
+  await beginEffortCapture(item, rows);
+}
+
+async function beginEffortCapture(item, rows, postFlash = null) {
   const wasTodo = await recordExercise(item.exercise, rows);
-  if (wasTodo) {
+  const pending = {
+    sessionId: state.session.id,
+    exercise: item.exercise,
+    targetRpe: item.targetRpe,
+    targetReps: schemeTargetReps(item.scheme),
+    wasTodo,
+    postFlash,
+  };
+  state.pendingEffort = pending;
+  state.effortDraft = { ...pending, rows };
+  await store.setMeta("pendingEffort", pending);
+  screens.showSessionEffort({ exercise: item.exercise });
+}
+
+async function onEffortPick(actualRpe) {
+  const draft = state.effortDraft;
+  if (!draft) return;
+  const rows = withActualEffort(draft.rows, actualRpe, draft.targetRpe);
+  await store.replaceSets(draft.sessionId, draft.exercise, rows);
+  state.sets = await store.getAllSets();
+  state.pendingEffort = null;
+  state.effortDraft = null;
+  await store.setMeta("pendingEffort", null);
+  screens.showSessionEffort(null);
+
+  if (draft.wasTodo) {
+    const hint = autoregulationHint(draft.targetReps, draft.targetRpe, rows);
+    if (draft.postFlash) state.flash = draft.postFlash;
+    else if (hint) state.flash = { icon: "💡", text: hint, danger: false };
     await advanceAfterRecord();
   } else {
-    state.flash = { icon: "✏️", text: "Исправлено", danger: false };
+    state.flash = draft.postFlash ?? {
+      icon: "✏️",
+      text: `Исправлено · усилие ${actualRpe}/10`,
+      danger: false,
+    };
     renderSessionScreen();
   }
 }
@@ -1092,9 +1145,17 @@ async function onHistoryEditSubmit(text) {
     screens.showHistoryEditError(e.message);
     return;
   }
-  const rpe = historyTargetRpe(session, exercise);
+  const targetRpe = historyTargetRpe(session, exercise);
+  const existing = sessionExerciseSets(state.sets, sessionId, exercise)
+    .filter((row) => !row.painFlag && !row.skipFlag);
+  const actualRpe = existing.find((row) => row.rpeActual === 1)?.rpe ?? null;
   const rows = parsed.map((p, i) => ({
-    sessionId, exercise, setIdx: i + 1, weight: p.weight, reps: p.reps, rpe, painFlag: 0, skipFlag: 0,
+    sessionId, exercise, setIdx: i + 1, weight: p.weight, reps: p.reps,
+    rpe: actualRpe ?? targetRpe,
+    targetRpe,
+    rpeActual: actualRpe == null ? 0 : 1,
+    painFlag: 0,
+    skipFlag: 0,
   }));
   await store.replaceSets(sessionId, exercise, rows);
   state.sets = await store.getAllSets();
@@ -1492,11 +1553,14 @@ function bindEvents() {
 
 async function init() {
   screens.initWellbeingGrid((n) => guarded(() => onWellbeingPick(n)));
+  screens.initSessionEffortGrid((n) => guarded(() => onEffortPick(n)));
 
   const params = new URLSearchParams(location.search);
   if (params.get("screen") === "session-demo") {
     bindEvents();
     renderDemoSession();
+    if (params.get("effort") === "1")
+      screens.showSessionEffort({ exercise: "Взятие на грудь (power clean)" });
     return;
   }
   if (params.get("screen") === "history-demo") {
@@ -1536,6 +1600,7 @@ async function init() {
   state.programStart = programStart;
   state.pullupMax = (await store.getMeta("pullupMax")) ?? null;
   state.lastBackupDate = (await store.getMeta("lastBackupDate")) ?? null;
+  state.pendingEffort = (await store.getMeta("pendingEffort")) ?? null;
   state.apiKey = (await store.getMeta("apiKey")) ?? null;
   state.foodGoals = (await store.getMeta("foodGoals")) ?? { ...DEFAULT_GOALS };
   state.food = await store.getAllFood();

@@ -20,7 +20,10 @@ export function showScreen(name) {
   $("tabbar").hidden = !isTabScreen;
   document.body.classList.toggle("no-tabbar", !isTabScreen);
   document.body.classList.toggle("session-mode", name === "session");
-  if (name !== "session") $("session-technique").hidden = true;
+  if (name !== "session") {
+    $("session-technique").hidden = true;
+    $("session-effort").hidden = true;
+  }
 }
 
 // active: "today" | "workout" | "food" | "weights" | null (напр. на экране
@@ -403,6 +406,31 @@ export function showSessionTechnique(open) {
   overlay.hidden = !open;
   if (open) $("session-technique-close").focus();
   else trigger.focus();
+}
+
+export function initSessionEffortGrid(onPick) {
+  const grid = $("session-effort-grid");
+  grid.textContent = "";
+  for (let n = 1; n <= 10; n++) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "effort-button";
+    btn.textContent = String(n);
+    btn.setAttribute("aria-label", `Фактическое усилие ${n} из 10`);
+    btn.addEventListener("click", () => onPick(n));
+    grid.appendChild(btn);
+  }
+}
+
+export function showSessionEffort(vm) {
+  const overlay = $("session-effort");
+  if (!vm) {
+    overlay.hidden = true;
+    return;
+  }
+  $("session-effort-exercise").textContent = vm.exercise;
+  overlay.hidden = false;
+  $("session-effort-sheet").focus();
 }
 
 function renderStrip(strip, onStripTap) {

@@ -79,6 +79,74 @@ body.no-tabbar { padding-bottom: 0; } /* панель скрыта в фокус
 }
 .technique-sheet img { width: 100%; display: block; }
 
+.effort-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+  background: rgba(11, 11, 15, .55);
+}
+.effort-sheet {
+  width: min(448px, 100%);
+  padding: 22px 18px 18px;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, .22);
+}
+.effort-sheet h2 {
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: -.02em;
+}
+.effort-exercise {
+  margin-top: 6px;
+  color: #636366;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.effort-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+.effort-button {
+  min-height: 52px;
+  border: 0;
+  border-radius: 14px;
+  color: #0B0B0F;
+  background: #F2F2F7;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.effort-button:active { background: #DDEBFF; color: #0A84FF; }
+.effort-scale-help {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 9px;
+  color: #8E8E93;
+  font-size: 11px;
+  font-weight: 600;
+}
+.effort-rir {
+  margin-top: 13px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: #4A4A50;
+  background: #F7F9FC;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-align: center;
+}
+
 .session-exercise-head {
   display: flex;
   align-items: flex-start;

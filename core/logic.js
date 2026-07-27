@@ -139,6 +139,20 @@ export function formatRest(sec) {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 }
 
+// Фактическое усилие спрашиваем один раз за всё упражнение, а не после каждого
+// подхода. Дублируем его в строках подходов, чтобы текущая модель данных и
+// автогуляция продолжали работать без отдельной таблицы.
+export function withActualEffort(rows, actualRpe, targetRpe) {
+  if (!Number.isInteger(actualRpe) || actualRpe < 1 || actualRpe > 10)
+    throw new Error("Фактическое усилие должно быть целым числом от 1 до 10.");
+  return rows.map((row) => ({
+    ...row,
+    rpe: actualRpe,
+    targetRpe,
+    rpeActual: 1,
+  }));
+}
+
 const REST_DURATIONS = [60, 90, 120];
 
 // Крупная плитка уже показывает выбранный интервал, поэтому в двух быстрых
