@@ -9,6 +9,7 @@ import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerci
 import { buildBackup, validateBackup } from "../core/backup.js";
 import { latestWeigh, weighDeltas, sortedByDateDesc, daysSince, METRICS, BODYCOMP_METRICS, metricHistory, metricDelta, deltaTone, parseWeighDraft } from "../core/weigh.js";
 import { DEFAULT_GOALS, dayTotals, scalePortion } from "../core/food.js";
+import { habitsViewModel, normalizeHabitsByDate, toggleHabit } from "../core/habits.js";
 import { recognizeFood, recognizeWeights } from "../core/claude.js";
 import { compressImage } from "./image.js";
 import * as screens from "./screens.js";
@@ -33,6 +34,7 @@ const state = {
   boostDay: null,        // «P1»/«P2», если сегодня беговой день недель 6-7 с опцией подкачки; null = плитку не показывать
   pullupMax: null,       // {value, date} | null — сохранённый максимум строгих подтягиваний
   lastBackupDate: null,  // дата последней резервной копии (meta) — плитка-напоминание на «Сегодня»
+  habitsByDate: {},      // дневные отметки трёх фокусов: { YYYY-MM-DD: [habitId] }
   timer: { startedAt: null, durationSec: DEFAULT_REST_DURATION, running: false, finished: false },
   food: [],             // записи еды (все даты), зеркало store
   apiKey: null,          // ключ Claude API — только в meta, в бэкап не попадает
@@ -155,7 +157,15 @@ function renderTodayScreen() {
     weightsSub,
     weightsAccent,
   });
+  screens.renderHabits(habitsViewModel(state.habitsByDate, today));
   screens.renderFoodTile(foodTileLabel());
+}
+
+async function onHabitToggle(habitId) {
+  const today = todayStr();
+  state.habitsByDate = toggleHabit(state.habitsByDate, today, habitId);
+  await store.setMeta("habitsByDate", state.habitsByDate);
+  screens.renderHabits(habitsViewModel(state.habitsByDate, today));
 }
 
 // ---------- Экран «Тренировка» ----------
@@ -1191,6 +1201,7 @@ async function onExport() {
     const backup = buildBackup(state.programStart, state.sessions, state.sets, {
       pullupMax: state.pullupMax ?? null,
       lastBackupDate: todayStr(),
+      habitsByDate: state.habitsByDate,
     }, state.food, state.weights);
     const json = JSON.stringify(backup, null, 2);
     screens.downloadFile(`trainer-backup-${todayStr()}.json`, json, "application/json;charset=utf-8");
@@ -1240,6 +1251,7 @@ async function onImportPick(file) {
         programStart: backup.meta.programStart,
         pullupMax: backup.meta.pullupMax,
         lastBackupDate: backup.meta.lastBackupDate,
+        habitsByDate: normalizeHabitsByDate(backup.meta.habitsByDate),
       },
       food: backup.food,
       weights: backup.weights,
@@ -1268,6 +1280,7 @@ async function onImportPick(file) {
     state.programStart = backup.meta.programStart;
     state.pullupMax = backup.meta.pullupMax;
     state.lastBackupDate = backup.meta.lastBackupDate;
+    state.habitsByDate = normalizeHabitsByDate(backup.meta.habitsByDate);
     state.historyExpandedId = null;
     state.historyEdit = null;
     state.flash = { icon: "✅", text: `Восстановлено: ${n} ${pluralRu(n, "сессия", "сессии", "сессий")}`, danger: false };
@@ -1454,6 +1467,7 @@ function renderDemoHub() {
     weightsSub: "Понедельник — день замера ⚖️",
     weightsAccent: true,
   });
+  screens.renderHabits(habitsViewModel({ "2026-07-31": ["meditation"] }, "2026-07-31"));
   screens.renderFoodTile("Еда 🍽 1450 / 2250 ккал · белок 96 / 160 г");
 }
 
@@ -1483,6 +1497,9 @@ function bindEvents() {
   screens.on("btn-history-back", "click", goToday);
   screens.on("resume-tile", "click", () => guarded(onResume));
   screens.on("backup-tile", "click", goHistory);
+  screens.on("habit-meditation", "click", () => guarded(() => onHabitToggle("meditation")));
+  screens.on("habit-protein", "click", () => guarded(() => onHabitToggle("protein")));
+  screens.on("habit-creatine", "click", () => guarded(() => onHabitToggle("creatine")));
 
   // Вкладки нижней панели + плитки-разделы хаба.
   screens.on("tab-today", "click", goToday);
@@ -1600,6 +1617,7 @@ async function init() {
   state.programStart = programStart;
   state.pullupMax = (await store.getMeta("pullupMax")) ?? null;
   state.lastBackupDate = (await store.getMeta("lastBackupDate")) ?? null;
+  state.habitsByDate = normalizeHabitsByDate((await store.getMeta("habitsByDate")) ?? {});
   state.pendingEffort = (await store.getMeta("pendingEffort")) ?? null;
   state.apiKey = (await store.getMeta("apiKey")) ?? null;
   state.foodGoals = (await store.getMeta("foodGoals")) ?? { ...DEFAULT_GOALS };

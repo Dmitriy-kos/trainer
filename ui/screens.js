@@ -88,6 +88,21 @@ export function renderToday({ hint, weekLabel, resumeLabel, backupLabel, workout
   $("hub-weights-tile").classList.toggle("accent", !!weightsAccent);
 }
 
+export function renderHabits({ items, done, total }) {
+  $("habits-count").textContent = `${done} из ${total}`;
+  $("habits-summary").textContent = done === total
+    ? "Все выполнено — день закрыт"
+    : done === 0 ? "Отмечай одним нажатием" : `Осталось: ${total - done}`;
+  $("habits-progress-fill").style.width = `${total > 0 ? Math.round((done / total) * 100) : 0}%`;
+
+  for (const item of items) {
+    const row = $(`habit-${item.id}`);
+    row.classList.toggle("done", item.done);
+    row.setAttribute("aria-pressed", String(item.done));
+    row.querySelector(".habit-check").textContent = item.done ? "✓" : "";
+  }
+}
+
 export function showTodayError(msg) {
   const el = $("today-error");
   if (msg) {

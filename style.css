@@ -31,6 +31,82 @@ body.no-tabbar { padding-bottom: 0; } /* панель скрыта в фокус
 
 .card-btn { border: 0; font: inherit; text-align: left; width: 100%; cursor: pointer; color: inherit; }
 
+.habits-card {
+  padding: 17px 16px 10px;
+  border: 2px solid #0A84FF;
+}
+.habits-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.habits-eyebrow {
+  margin-bottom: 3px;
+  color: #0A84FF;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+.habits-count {
+  flex: 0 0 auto;
+  border-radius: 100px;
+  padding: 6px 10px;
+  color: #0A84FF;
+  background: #E5F0FF;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.habits-progress {
+  height: 6px;
+  margin: 13px 0 4px;
+  overflow: hidden;
+  border-radius: 100px;
+  background: #E9E9EE;
+}
+.habits-progress > div {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #0A84FF;
+  transition: width .2s ease;
+}
+.habits-list { margin-top: 4px; }
+.habit-row {
+  display: grid;
+  grid-template-columns: 26px 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 51px;
+  border: 0;
+  border-bottom: 1px solid #EFEFF4;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.habit-row:last-child { border-bottom: 0; }
+.habit-check {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1.5px solid #C7C7CC;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+}
+.habit-icon { font-size: 21px; text-align: center; }
+.habit-name { font-size: 15px; font-weight: 750; }
+.habit-row.done .habit-check { border-color: #34C759; background: #34C759; }
+.habit-row.done .habit-name { color: #636366; }
+.habit-row:active { opacity: .58; }
+
 .note { font-size: 13px; color: #8E8E93; margin-top: 8px; line-height: 1.35; }
 
 .mini .l { font-size: 12px; color: #8E8E93; font-weight: 600; margin-bottom: 6px; }
@@ -257,6 +333,7 @@ body.no-tabbar { padding-bottom: 0; } /* панель скрыта в фокус
 .card.timer.alerting .l { animation: timer-alert-label-pulse .72s ease-in-out; }
 
 @media (prefers-reduced-motion: reduce) {
+  .habits-progress > div { transition: none; }
   .card.timer.alerting { animation: none; background: #FF3B30; color: #fff; }
   .card.timer.alerting .l { animation: none; color: rgba(255,255,255,.84); }
 }
