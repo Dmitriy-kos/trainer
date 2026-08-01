@@ -4,7 +4,7 @@ export function buildBackup(programStart, sessions, sets, extraMeta = {}, food =
   // из UI; а сам payload в файле бэкапа не место (файлы лежат в Google Диске).
   const cleanFood = (food || []).filter((f) => f.status !== "pending").map((f) => ({ ...f, pendingPayload: null }));
   return { app: "trainer", version: 5, exportedAt: new Date().toISOString(),
-           meta: { programStart, pullupMax: null, lastBackupDate: null, habitsByDate: {}, ...extraMeta },
+           meta: { programStart, pullupMax: null, lastBackupDate: null, habitsByDate: {}, scheduleAdjustments: [], ...extraMeta },
            sessions, sets, food: cleanFood, weights: weights || [] };
 }
 
@@ -19,7 +19,7 @@ export function validateBackup(obj) {
   if (!ok) throw new Error("Это не файл резервной копии тренера (ожидаю trainer v1–v5).");
   const sessions = obj.sessions.map((s) => (s.program == null ? { ...s, program: 1 } : s));
   const sets = obj.sets.map((x) => (x.skipFlag == null ? { ...x, skipFlag: 0 } : x));
-  const meta = { pullupMax: null, lastBackupDate: null, habitsByDate: {}, ...obj.meta };
+  const meta = { pullupMax: null, lastBackupDate: null, habitsByDate: {}, scheduleAdjustments: [], ...obj.meta };
   const food = Array.isArray(obj.food) ? obj.food : [];
   const weights = Array.isArray(obj.weights) ? obj.weights : [];
   return { ...obj, version: 5, sessions, sets, meta, food, weights };

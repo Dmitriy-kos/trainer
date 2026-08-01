@@ -10,6 +10,7 @@ import { buildBackup, validateBackup } from "../core/backup.js";
 import { latestWeigh, weighDeltas, sortedByDateDesc, daysSince, METRICS, BODYCOMP_METRICS, metricHistory, metricDelta, deltaTone, parseWeighDraft } from "../core/weigh.js";
 import { DEFAULT_GOALS, dayTotals, scalePortion } from "../core/food.js";
 import { habitsViewModel, normalizeHabitsByDate, toggleHabit } from "../core/habits.js";
+import { normalizeScheduleAdjustments, programStartForDate } from "../core/schedule.js";
 import { recognizeFood, recognizeWeights } from "../core/claude.js";
 import { compressImage } from "./image.js";
 import * as screens from "./screens.js";
@@ -21,6 +22,7 @@ const state = {
   sessions: [],
   sets: [],
   programStart: DEFAULT_PROGRAM_START,
+  scheduleAdjustments: [], // вставки недель поверх базовой даты; прошлое не переписывают
   session: null,       // текущая открытая силовая сессия (в памяти, синхронно с store)
   exercises: [],        // planForSession(session), отсортировано по orderIdx
   cursorIdx: 0,          // какое упражнение сессии сейчас на экране (Шаг 8: порядок свободный)
@@ -70,6 +72,10 @@ function todayTimeStr() {
 function todayWeekday() {
   // JS getDay(): Вс=0..Сб=6. Контракт plan.js: Пн=0..Вс=6.
   return (new Date().getDay() + 6) % 7;
+}
+
+function activeProgramStart(date) {
+  return programStartForDate(state.programStart, date, state.scheduleAdjustments);
 }
 
 function consumeFlash() {
@@ -123,7 +129,7 @@ function renderTodayScreen() {
   screens.showTodayError("");
   const weekday = todayWeekday();
   const today = todayStr();
-  const { number, week } = programForDate(state.programStart, today);
+  const { number, week } = programForDate(activeProgramStart(today), today);
   const program = programByNumber(number);
   const hint = programWeekdayHint(program, weekday);
   const todayDay = programDayForWeekday(program, weekday);
@@ -180,7 +186,7 @@ function renderWorkoutScreen() {
   screens.showWorkoutError("");
   const weekday = todayWeekday();
   const today = todayStr();
-  const { number, week } = programForDate(state.programStart, today);
+  const { number, week } = programForDate(activeProgramStart(today), today);
   const program = programByNumber(number);
   const hint = programWeekdayHint(program, weekday);
   const todayDay = programDayForWeekday(program, weekday);
@@ -197,7 +203,7 @@ function renderWorkoutScreen() {
     resumeLabel = `Продолжить: ${label} от ${unfinished.date} (осталось ${remaining} из ${total})`;
   }
 
-  const mt = measureTile(state.programStart, today, state.sessions);
+  const mt = measureTile(activeProgramStart(today), today, state.sessions);
   const measureLabel = mt ? "Замеры 📏 — рабочие максимумы месяца" : null;
   state.measureProgram = mt ? mt.programNumber : null;
 
@@ -458,7 +464,7 @@ function dayTypeLabel(day) {
 
 async function onStartStrength(day) {
   const today = todayStr();
-  const { number, week } = programForDate(state.programStart, today);
+  const { number, week } = programForDate(activeProgramStart(today), today);
   const program = day === "T" && state.measureProgram ? state.measureProgram : number;
   const session = { date: today, day, week, status: "open", wellbeing: null, note: null, progressIdx: 0, program };
   const id = await store.addSession(session);
@@ -847,7 +853,7 @@ async function onWellbeingSkip() {
 
 async function onStartRun() {
   const today = todayStr();
-  const { number, week } = programForDate(state.programStart, today);
+  const { number, week } = programForDate(activeProgramStart(today), today);
   const run = { date: today, day: "RUN", week, status: "done", wellbeing: null, note: null, progressIdx: 0, program: number };
   const id = await store.addSession(run);
   const withId = { ...run, id };
@@ -1202,6 +1208,7 @@ async function onExport() {
       pullupMax: state.pullupMax ?? null,
       lastBackupDate: todayStr(),
       habitsByDate: state.habitsByDate,
+      scheduleAdjustments: state.scheduleAdjustments,
     }, state.food, state.weights);
     const json = JSON.stringify(backup, null, 2);
     screens.downloadFile(`trainer-backup-${todayStr()}.json`, json, "application/json;charset=utf-8");
@@ -1252,6 +1259,7 @@ async function onImportPick(file) {
         pullupMax: backup.meta.pullupMax,
         lastBackupDate: backup.meta.lastBackupDate,
         habitsByDate: normalizeHabitsByDate(backup.meta.habitsByDate),
+        scheduleAdjustments: normalizeScheduleAdjustments(backup.meta.scheduleAdjustments),
       },
       food: backup.food,
       weights: backup.weights,
@@ -1281,6 +1289,7 @@ async function onImportPick(file) {
     state.pullupMax = backup.meta.pullupMax;
     state.lastBackupDate = backup.meta.lastBackupDate;
     state.habitsByDate = normalizeHabitsByDate(backup.meta.habitsByDate);
+    state.scheduleAdjustments = normalizeScheduleAdjustments(backup.meta.scheduleAdjustments);
     state.historyExpandedId = null;
     state.historyEdit = null;
     state.flash = { icon: "✅", text: `Восстановлено: ${n} ${pluralRu(n, "сессия", "сессии", "сессий")}`, danger: false };
@@ -1616,6 +1625,11 @@ async function init() {
     await store.setMeta("programStart", programStart);
   }
   state.programStart = programStart;
+  const storedScheduleAdjustments = (await store.getMeta("scheduleAdjustments")) ?? [];
+  state.scheduleAdjustments = normalizeScheduleAdjustments(storedScheduleAdjustments);
+  if (JSON.stringify(storedScheduleAdjustments) !== JSON.stringify(state.scheduleAdjustments)) {
+    await store.setMeta("scheduleAdjustments", state.scheduleAdjustments);
+  }
   state.pullupMax = (await store.getMeta("pullupMax")) ?? null;
   state.lastBackupDate = (await store.getMeta("lastBackupDate")) ?? null;
   state.habitsByDate = normalizeHabitsByDate((await store.getMeta("habitsByDate")) ?? {});

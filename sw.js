@@ -5,7 +5,7 @@
 // НЕ добавлять в список: tests/, package.json (не деплоятся), сам sw.js
 // (браузер обновляет SW самостоятельно; кэширование sw.js тормозит апдейты).
 
-const CACHE = "trainer-v27"; // менять при каждом релизе, чтобы activate вычистил старый кэш
+const CACHE = "trainer-v28"; // менять при каждом релизе, чтобы activate вычистил старый кэш
 
 const ASSETS = [
   "./",
@@ -24,6 +24,7 @@ const ASSETS = [
   "core/claude.js",
   "core/weigh.js",
   "core/habits.js",
+  "core/schedule.js",
   "ui/image.js",
   "assets/technique/accessory.png",
   "assets/technique/barbell_row.png",
