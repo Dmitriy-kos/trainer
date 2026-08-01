@@ -1497,6 +1497,7 @@ function bindEvents() {
   screens.on("btn-history-back", "click", goToday);
   screens.on("resume-tile", "click", () => guarded(onResume));
   screens.on("backup-tile", "click", goHistory);
+  screens.on("habit-fish_oil", "click", () => guarded(() => onHabitToggle("fish_oil")));
   screens.on("habit-meditation", "click", () => guarded(() => onHabitToggle("meditation")));
   screens.on("habit-protein", "click", () => guarded(() => onHabitToggle("protein")));
   screens.on("habit-creatine", "click", () => guarded(() => onHabitToggle("creatine")));

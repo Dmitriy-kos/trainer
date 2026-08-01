@@ -1,4 +1,5 @@
 export const DAILY_HABITS = Object.freeze([
+  Object.freeze({ id: "fish_oil", icon: "🐟", label: "Выпил рыбий жир" }),
   Object.freeze({ id: "meditation", icon: "🧘", label: "Сделал медитацию" }),
   Object.freeze({ id: "protein", icon: "🥤", label: "Выпил протеин" }),
   Object.freeze({ id: "creatine", icon: "⚡", label: "Выпил креатин" }),
