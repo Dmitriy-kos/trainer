@@ -10,7 +10,7 @@ const $ = (id) => document.getElementById(id);
 const SCREEN_IDS = ["today", "history", "session", "done", "run", "food", "workout", "weights", "bodycomp"];
 
 // Экраны-разделы: на них постоянно видна нижняя панель вкладок. Остальные —
-// фокус-режимы (сессия, самочувствие, done, бег) — панель прячут, чтобы
+// фокус-режимы (сессия, итоги, бег) — панель прячут, чтобы
 // случайный тап не выбил из записи подхода (дизайн_v7, раздел 1).
 const TAB_SCREENS = ["today", "workout", "food", "weights", "history", "bodycomp"];
 

@@ -126,7 +126,6 @@ const EXERCISE_IMAGE = {
   "Швунг жимовой (push press)": "push_press",
   "Пресс: подъём ног в висе": "hanging_leg_raise",
   "Пресс: hollow hold": "hollow_hold",
-  "Планка": "accessory",
   "Аксессуары (пресс + руки)": "russian_twist",
   "Тяга гантели одной рукой с опорой на лавку": "db_row_bench",
   "Пресс: русские повороты": "russian_twist",
