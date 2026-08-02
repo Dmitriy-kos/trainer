@@ -142,6 +142,9 @@
         <div class="session-eyebrow">Упражнение записано</div>
         <h2 id="session-effort-title">Насколько тяжело было?</h2>
         <p class="effort-exercise" id="session-effort-exercise"></p>
+        <label class="effort-comment-label" for="session-effort-comment">Комментарий на следующий раз</label>
+        <textarea id="session-effort-comment" class="effort-comment-input" rows="2" maxlength="160" placeholder="Например: добавить 2,5 кг (необязательно)"></textarea>
+        <p class="effort-comment-help">Покажем его рядом с результатом прошлой тренировки.</p>
         <div class="effort-grid" id="session-effort-grid" aria-label="Фактическое усилие от 1 до 10"></div>
         <div class="effort-scale-help"><span>1 — очень легко</span><span>10 — предел</span></div>
         <p class="effort-rir">7 ≈ осталось 3 повтора · 8 ≈ 2 · 9 ≈ 1</p>
@@ -165,6 +168,7 @@
           <div class="session-previous-date" id="session-last-date" hidden></div>
         </div>
         <div class="session-last-sets" id="session-last-value"></div>
+        <div class="session-last-comment" id="session-last-comment" hidden></div>
       </div>
 
       <button type="button" class="session-meta-row session-meta-button" id="session-pullup-max" hidden>
@@ -206,27 +210,19 @@
     </div>
   </section>
 
-  <!-- Экран: Самочувствие -->
-  <section id="screen-wellbeing" hidden>
-    <div class="card big">
-      <h1>Сессия закрыта</h1>
-      <div class="s">Самочувствие?</div>
-    </div>
-
-    <div class="card flash" id="wellbeing-flash" hidden></div>
-
-    <div class="input-row">
-      <input type="text" id="wellbeing-note" placeholder="Заметка (необязательно)">
-    </div>
-    <div class="grid grid5" id="wellbeing-grid"></div>
-    <button type="button" class="btn btn-wide" id="wellbeing-skip">Пропустить</button>
-  </section>
-
-  <!-- Экран: сессия зафиксирована (плюс предупреждение о перетрене, если есть) -->
+  <!-- Экран: итоги завершённой силовой -->
   <section id="screen-done" hidden>
-    <div class="card big"><h1>Отдыхай 💪</h1></div>
-    <div class="card flash" id="done-alert" hidden></div>
-    <button type="button" class="btn btn-wide" id="done-back">← Сегодня</button>
+    <div class="card big done-hero">
+      <div class="session-eyebrow" id="done-eyebrow"></div>
+      <h1>Тренировка завершена 💪</h1>
+      <div class="s" id="done-summary"></div>
+    </div>
+    <div class="card done-card">
+      <div class="history-title">Итоги тренировки</div>
+      <div class="done-list" id="done-list"></div>
+    </div>
+    <button type="button" class="btn btn-wide btn-accent" id="done-back">Окей</button>
+    <button type="button" class="btn btn-wide" id="done-edit">Исправить результаты</button>
   </section>
 
   <!-- Экран: Бег -->

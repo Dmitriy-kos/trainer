@@ -7,7 +7,7 @@ import { METRICS } from "../core/weigh.js";
 
 const $ = (id) => document.getElementById(id);
 
-const SCREEN_IDS = ["today", "history", "session", "wellbeing", "done", "run", "food", "workout", "weights", "bodycomp"];
+const SCREEN_IDS = ["today", "history", "session", "done", "run", "food", "workout", "weights", "bodycomp"];
 
 // Экраны-разделы: на них постоянно видна нижняя панель вкладок. Остальные —
 // фокус-режимы (сессия, самочувствие, done, бег) — панель прячут, чтобы
@@ -386,6 +386,15 @@ export function renderSession(vm, onStripTap) {
     }
   }
 
+  const lastComment = $("session-last-comment");
+  if (vm.lastComment) {
+    lastComment.textContent = `На следующий раз: ${vm.lastComment}`;
+    lastComment.hidden = false;
+  } else {
+    lastComment.textContent = "";
+    lastComment.hidden = true;
+  }
+
   const pm = $("session-pullup-max");
   pm.hidden = vm.pullupMaxLabel == null;
   if (vm.pullupMaxLabel != null) $("session-pullup-max-value").textContent = vm.pullupMaxLabel;
@@ -444,8 +453,13 @@ export function showSessionEffort(vm) {
     return;
   }
   $("session-effort-exercise").textContent = vm.exercise;
+  $("session-effort-comment").value = vm.comment ?? "";
   overlay.hidden = false;
   $("session-effort-sheet").focus();
+}
+
+export function getSessionEffortComment() {
+  return $("session-effort-comment").value;
 }
 
 function renderStrip(strip, onStripTap) {
@@ -517,33 +531,33 @@ export function showSessionError(msg) {
   }
 }
 
-// ---------- Самочувствие ----------
+// ---------- Итоги силовой ----------
 
-export function initWellbeingGrid(onPick) {
-  const grid = $("wellbeing-grid");
-  for (let n = 1; n <= 10; n++) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn";
-    btn.textContent = String(n);
-    btn.addEventListener("click", () => onPick(n));
-    grid.appendChild(btn);
+export function renderDone(vm) {
+  $("done-eyebrow").textContent = vm.eyebrow;
+  $("done-summary").textContent = vm.summary;
+  const list = $("done-list");
+  list.textContent = "";
+  for (const item of vm.items) {
+    const row = document.createElement("div");
+    row.className = `done-row done-${item.status}`;
+    const copy = document.createElement("div");
+    copy.className = "done-row-copy";
+    const name = document.createElement("strong");
+    name.textContent = item.exercise;
+    const result = document.createElement("span");
+    result.textContent = item.result;
+    copy.appendChild(name);
+    copy.appendChild(result);
+    row.appendChild(copy);
+    if (item.note) {
+      const note = document.createElement("div");
+      note.className = "done-row-note";
+      note.textContent = `На следующий раз: ${item.note}`;
+      row.appendChild(note);
+    }
+    list.appendChild(row);
   }
-}
-
-export function renderWellbeing({ flash }) {
-  $("wellbeing-note").value = "";
-  renderFlash($("wellbeing-flash"), flash);
-}
-
-export function getWellbeingNote() {
-  return $("wellbeing-note").value;
-}
-
-// ---------- Сессия закрыта (предупреждение о перетрене) ----------
-
-export function renderDone({ alert }) {
-  renderFlash($("done-alert"), alert ? { icon: "⚠️", text: alert, danger: true } : null);
 }
 
 // ---------- Бег ----------

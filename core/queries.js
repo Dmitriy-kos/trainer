@@ -14,6 +14,55 @@ export function lastSets(sessions, sets, exercise) {
   return clean.filter((x) => x.sessionId === latest.id).sort((a, b) => a.setIdx - b.setIdx);
 }
 
+// Короткая памятка относится к конкретному выполнению упражнения и хранится
+// внутри сессии. Показываем её только вместе с тем же «прошлым разом», чтобы
+// старая заметка не всплывала после более новой тренировки без комментария.
+export function lastExerciseComment(sessions, sets, exercise) {
+  const rows = lastSets(sessions, sets, exercise);
+  if (rows.length === 0) return null;
+  const session = sessions.find((s) => s.id === rows[0].sessionId);
+  const value = session?.exerciseNotes?.[exercise];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+export function withExerciseComment(session, exercise, value) {
+  const notes = { ...(session.exerciseNotes ?? {}) };
+  const clean = typeof value === "string" ? value.trim().slice(0, 160) : "";
+  if (clean) notes[exercise] = clean;
+  else delete notes[exercise];
+  return { ...session, exerciseNotes: notes };
+}
+
+export function sessionSummary(session, allSets, plan) {
+  const planned = (plan ?? []).slice().sort((a, b) => a.orderIdx - b.orderIdx);
+  const present = [...new Set(allSets.filter((x) => x.sessionId === session.id).map((x) => x.exercise))];
+  const order = planned.length > 0
+    ? [...planned.map((x) => x.exercise), ...present.filter((x) => !planned.some((p) => p.exercise === x))]
+    : present;
+  const items = order.map((exercise) => {
+    const rows = sessionExerciseSets(allSets, session.id, exercise);
+    const clean = rows.filter((x) => !x.painFlag && !x.skipFlag);
+    const status = exerciseStatus(allSets, session.id, exercise);
+    const result = clean.length > 0
+      ? formatLastSets(clean)
+      : status === "skipped" ? "пропущено" : status === "pain" ? "больно" : "не записано";
+    const rawNote = session.exerciseNotes?.[exercise];
+    return {
+      exercise,
+      result,
+      status,
+      setCount: clean.length,
+      note: typeof rawNote === "string" && rawNote.trim() ? rawNote.trim() : null,
+    };
+  });
+  return {
+    completedCount: items.filter((x) => x.status === "done").length,
+    totalExercises: planned.length || items.length,
+    totalSets: items.reduce((sum, x) => sum + x.setCount, 0),
+    items,
+  };
+}
+
 export function recentWellbeing(sessions, limit = 3) {
   return sessions.filter((s) => s.status === "done" && s.wellbeing != null)
     .sort(newerFirst).slice(0, limit).map((s) => s.wellbeing);

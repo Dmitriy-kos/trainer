@@ -68,21 +68,21 @@ const PROGRAM_2 = {
   dayPlans: {
     A: [
       { exercise: "Взятие на грудь (power clean)", orderIdx: 1, scheme: "5×3 (нед. 5: 4×3)", targetRpe: 7, note: "первым — техника и взрыв; вес растёт только при сохранении скорости" },
-      { exercise: "Присед со штангой", orderIdx: 2, scheme: "5×5 (нед. 5: 4×5)", targetRpe: 8, note: "усилие 7→8 по неделям; старт ≈ вес 4×8 месяца 1 + 5%, судья — усилие" },
+      { exercise: "Присед со штангой", orderIdx: 2, scheme: "5×5 (нед. 5: 4×5)", targetRpe: 8, note: "старт ≈ вес 4×8 месяца 1 + 5%; повышай только после чистого выполнения" },
       { exercise: "Румынская тяга (RDL)", orderIdx: 3, scheme: "3×8 (нед. 5: 2×8)", targetRpe: 7, note: "тяжелее месяца 1" },
       { exercise: "Подтягивания (объёмный день)", orderIdx: 4, scheme: "по прогрессии", targetRpe: 8, note: "лесенка 2 круга — главный день цели 10" },
       { exercise: "Пресс: подъёмы ног лёжа", orderIdx: 5, scheme: "3×12-15", targetRpe: 7, note: "поясница прижата к полу; без виса — хват в дне A уже нагружен clean, RDL и подтягиваниями (решение CEO 21.07.2026)" },
     ],
     B: [
-      { exercise: "Жим лёжа", orderIdx: 1, scheme: "5×5", targetRpe: 8, note: "усилие 7→8; +2,5 кг после двух чистых занятий подряд" },
+      { exercise: "Жим лёжа", orderIdx: 1, scheme: "5×5", targetRpe: 8, note: "+2,5 кг после двух чистых занятий подряд" },
       { exercise: "Подтягивания", orderIdx: 2, scheme: "по прогрессии", targetRpe: 8, note: "вторыми, свежим; пока тянет спина — жимовые мышцы отдыхают" },
       { exercise: "Жим стоя (OHP)", orderIdx: 3, scheme: "3×6", targetRpe: 8, note: "строгий, без подседа; прогрессия повторами 6→7→8, потом +2,5 кг" },
       { exercise: "Тяга гантели одной рукой с опорой на лавку", orderIdx: 4, scheme: "3×8 / рука", targetRpe: 7, note: "грудь/рука на лавке — поясница выключена" },
       { exercise: "Жим гантелей на наклонной", orderIdx: 5, scheme: "3×10", targetRpe: 7, note: "добивка на верх груди" },
-      { exercise: "Пресс: hollow hold", orderIdx: 6, scheme: "3×30-45 с", targetRpe: 7, note: "кор под штангу" },
+      { exercise: "Планка", orderIdx: 6, scheme: "3×60 с", targetRpe: 7, note: "тело одной линией; не проваливай таз" },
     ],
     C: [
-      { exercise: "Становая тяга", orderIdx: 1, scheme: "4×4", targetRpe: 8, note: "усилие 7→8; накануне был только лёгкий бег" },
+      { exercise: "Становая тяга", orderIdx: 1, scheme: "4×4", targetRpe: 8, note: "накануне был только лёгкий бег" },
       { exercise: "Фронтальный присед", orderIdx: 2, scheme: "3×5 (нед. 5: 2×5)", targetRpe: 8, note: "умеренно, связка с clean" },
       { exercise: "Подтягивания", orderIdx: 3, scheme: "по прогрессии", targetRpe: 8, note: "качество: с паузой 2 с вверху, без гонки" },
       { exercise: "Пресс: русские повороты", orderIdx: 4, scheme: "3×20", targetRpe: 7, note: "" },
@@ -126,6 +126,7 @@ const EXERCISE_IMAGE = {
   "Швунг жимовой (push press)": "push_press",
   "Пресс: подъём ног в висе": "hanging_leg_raise",
   "Пресс: hollow hold": "hollow_hold",
+  "Планка": "accessory",
   "Аксессуары (пресс + руки)": "russian_twist",
   "Тяга гантели одной рукой с опорой на лавку": "db_row_bench",
   "Пресс: русские повороты": "russian_twist",
@@ -153,7 +154,16 @@ export function globalWeekNumber(programNumber, week) {
 }
 
 export function planForSession(session) {
-  return programByNumber(session.program ?? 1).dayPlans[session.day] ?? null;
+  const plan = programByNumber(session.program ?? 1).dayPlans[session.day] ?? null;
+  // До решения 02.08.2026 шестым упражнением дня B был hollow hold. Старые
+  // сессии должны продолжать показывать именно тот план, который выполнялся,
+  // иначе История дорисует им ложную «пропущенную планку».
+  if (plan && session.program === 2 && session.day === "B" && session.date && session.date < "2026-08-02") {
+    return plan.map((item) => item.exercise === "Планка"
+      ? { exercise: "Пресс: hollow hold", orderIdx: 6, scheme: "3×30-45 с", targetRpe: 7, note: "кор под штангу" }
+      : item);
+  }
+  return plan;
 }
 
 export function programDayForWeekday(program, weekday) {

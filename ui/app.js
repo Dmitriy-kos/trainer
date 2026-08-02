@@ -2,10 +2,10 @@
 // screens.js отвечает за DOM; этот модуль решает, ЧТО показать и КОГДА писать в БД.
 
 import * as store from "../core/store.js";
-import { autoregulationHint, overtrainingAlert, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, restAlertSecond, formatRest, withActualEffort, restPresetDurations, backupReminder } from "../core/logic.js";
+import { autoregulationHint, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, restAlertSecond, formatRest, withActualEffort, restPresetDurations, backupReminder } from "../core/logic.js";
 import { parseSetInput, formatLastSets, formatWorkoutDate, schemeTargetReps, latestCacheVersion, humanScheme } from "../core/format.js";
 import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS, globalWeekNumber } from "../core/plan.js";
-import { lastSets, recentWellbeing, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
+import { lastSets, lastExerciseComment, withExerciseComment, sessionSummary, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
 import { latestWeigh, weighDeltas, sortedByDateDesc, daysSince, METRICS, BODYCOMP_METRICS, metricHistory, metricDelta, deltaTone, parseWeighDraft } from "../core/weigh.js";
 import { DEFAULT_GOALS, dayTotals, scalePortion } from "../core/food.js";
@@ -523,14 +523,14 @@ async function openSessionFlow(session) {
   state.session = session;
   state.exercises = (planForSession(session) ?? []).slice().sort((a, b) => a.orderIdx - b.orderIdx);
   if (state.exercises.length === 0) {
-    goWellbeing();
+    await completeStrengthSession();
     return;
   }
   if (await restorePendingEffort(session)) return;
   if (sessionRemaining(state.sets, session.id, state.exercises) === 0) {
-    // Все упражнения отмечены, самочувствие ещё не спросили — типичный «закрыли
-    // приложение между последним подходом и экраном самочувствия».
-    goWellbeing();
+    // Все упражнения отмечены, но экран итогов ещё не показан — типичный случай,
+    // когда приложение закрыли сразу после последней записи.
+    await completeStrengthSession();
     return;
   }
   const saved = Math.min(Math.max(session.progressIdx ?? 0, 0), state.exercises.length - 1);
@@ -559,7 +559,7 @@ async function restorePendingEffort(session) {
   state.effortDraft = { ...pending, rows };
   screens.showScreen("session");
   renderSessionScreen();
-  screens.showSessionEffort({ exercise: pending.exercise });
+  screens.showSessionEffort({ exercise: pending.exercise, comment: pending.comment ?? "" });
   return true;
 }
 
@@ -601,7 +601,7 @@ async function advanceAfterRecord() {
     await store.updateSession(updated);
     state.sessions = state.sessions.map((s) => (s.id === updated.id ? updated : s));
     state.session = updated;
-    goWellbeing();
+    await completeStrengthSession();
     return;
   }
   await setCursor(next);
@@ -617,6 +617,7 @@ function buildSessionVm() {
   const lastSession = last.length > 0
     ? state.sessions.find((s) => s.id === last[0].sessionId)
     : null;
+  const lastComment = lastExerciseComment(state.sessions, state.sets, item.exercise);
 
   let recordedText = null;
   if (statuses[idx] === "skipped") recordedText = "⏭ пропущено";
@@ -624,19 +625,17 @@ function buildSessionVm() {
   else if (statuses[idx] === "done") {
     const rec = sessionExerciseSets(state.sets, sid, item.exercise).filter((s) => !s.painFlag && !s.skipFlag);
     recordedText = "✓ " + formatLastSets(rec);
-    const actual = rec.find((s) => s.rpeActual === 1)?.rpe;
-    if (actual != null) recordedText += ` · усилие ${actual}/10`;
   }
 
   const isPullup = item.exercise.startsWith("Подтягивания");
   // Схему показываем словами («5 подходов по 3 повторения»), а вариант «нед. 5»
   // раскрываем по текущей неделе — на карточке нет скобок и шифровок (CEO 21.07.2026).
   const gWeek = globalWeekNumber(state.session.program ?? 1, state.session.week);
-  let schemeLine = `${humanScheme(item.scheme, gWeek)} · усилие ${item.targetRpe}/10`;
+  let schemeLine = humanScheme(item.scheme, gWeek);
   let pullupMaxLabel = null;
   if (isPullup) {
     const maxVal = state.pullupMax ? state.pullupMax.value : null;
-    schemeLine = `${humanScheme(pullupDayScheme(state.session.program ?? 1, state.session.week, state.session.day, maxVal), gWeek)} · усилие ${item.targetRpe}/10`;
+    schemeLine = humanScheme(pullupDayScheme(state.session.program ?? 1, state.session.week, state.session.day, maxVal), gWeek);
     pullupMaxLabel = pullupMaxTileLabel();
   }
 
@@ -652,6 +651,7 @@ function buildSessionVm() {
     lastSetsText: formatLastSets(last),
     lastSetLabels: last.map((set) => formatLastSets([set])),
     lastDateLabel: formatWorkoutDate(lastSession?.date),
+    lastComment,
     // «Так же» имеет смысл только для ещё не записанного упражнения (ярлык «повторить
     // прошлый раз»). Если статус уже done/skipped/pain — кнопка неактивна, иначе тап по
     // кружку полоски на записанном упражнении может молча затереть сегодняшние числа.
@@ -769,19 +769,25 @@ async function beginEffortCapture(item, rows, postFlash = null) {
     targetReps: schemeTargetReps(item.scheme),
     wasTodo,
     postFlash,
+    comment: state.session.exerciseNotes?.[item.exercise] ?? "",
   };
   state.pendingEffort = pending;
   state.effortDraft = { ...pending, rows };
   await store.setMeta("pendingEffort", pending);
-  screens.showSessionEffort({ exercise: item.exercise });
+  screens.showSessionEffort({ exercise: item.exercise, comment: pending.comment });
 }
 
 async function onEffortPick(actualRpe) {
   const draft = state.effortDraft;
   if (!draft) return;
+  const comment = screens.getSessionEffortComment();
   const rows = withActualEffort(draft.rows, actualRpe, draft.targetRpe);
   await store.replaceSets(draft.sessionId, draft.exercise, rows);
   state.sets = await store.getAllSets();
+  const updatedSession = withExerciseComment(state.session, draft.exercise, comment);
+  await store.updateSession(updatedSession);
+  state.session = updatedSession;
+  state.sessions = state.sessions.map((s) => (s.id === updatedSession.id ? updatedSession : s));
   state.pendingEffort = null;
   state.effortDraft = null;
   await store.setMeta("pendingEffort", null);
@@ -816,37 +822,39 @@ async function onSkip() {
 // Кнопка «Больно» убрана (решение CEO 10.07.2026). painFlag остаётся в модели:
 // старые записи читаются из бэкапов и показываются в истории строкой «🚑 больно».
 
-// ---------- Самочувствие ----------
+// ---------- Итоги силовой ----------
 
-function goWellbeing() {
+function buildDoneVm(session) {
+  const result = sessionSummary(session, state.sets, planForSession(session));
+  return {
+    eyebrow: `${dayTypeLabel(session.day)} · Неделя ${session.week}`,
+    summary: `${result.completedCount} из ${result.totalExercises} упражнений · ${result.totalSets} ${pluralRu(result.totalSets, "подход", "подхода", "подходов")}`,
+    items: result.items,
+  };
+}
+
+async function completeStrengthSession() {
   stopTimer(false);
-  screens.showScreen("wellbeing");
-  screens.renderWellbeing({ flash: consumeFlash() });
-}
-
-async function finishSession(wellbeing) {
-  const note = screens.getWellbeingNote().trim() || null;
-  const updated = { ...state.session, status: "done", wellbeing, note };
-  await store.updateSession(updated);
-  state.sessions = state.sessions.map((s) => (s.id === updated.id ? updated : s));
-  state.session = null;
-  return updated;
-}
-
-async function onWellbeingPick(n) {
-  await finishSession(n);
-  const alert = overtrainingAlert(recentWellbeing(state.sessions));
-  if (alert) {
-    screens.showScreen("done");
-    screens.renderDone({ alert });
-  } else {
-    goToday();
+  let completed = state.session;
+  if (completed.status !== "done") {
+    completed = { ...completed, status: "done", wellbeing: null, note: null };
+    await store.updateSession(completed);
+    state.sessions = state.sessions.map((s) => (s.id === completed.id ? completed : s));
   }
+  state.session = completed;
+  screens.showScreen("done");
+  screens.renderDone(buildDoneVm(completed));
 }
 
-async function onWellbeingSkip() {
-  await finishSession(null);
-  goToday();
+function onDoneEdit() {
+  const sessionId = state.session?.id;
+  if (sessionId == null) return;
+  state.historyExpandedId = sessionId;
+  state.historyEdit = null;
+  screens.showHistoryError("");
+  screens.showScreen("history");
+  screens.renderTabbar(null);
+  renderHistoryScreen();
 }
 
 // ---------- Бег ----------
@@ -1093,8 +1101,8 @@ async function onFoodRetryPending() {
 
 function buildHistoryItemVm(session) {
   const typeLabel = dayTypeLabel(session.day);
-  const wellbeingLabel = session.wellbeing != null ? `${session.wellbeing}/10` : "—";
-  let subLabel = `Неделя ${session.week} · ${wellbeingLabel}`;
+  let subLabel = `Неделя ${session.week}`;
+  if (session.wellbeing != null) subLabel += ` · самочувствие ${session.wellbeing}/10`;
   if (session.status === "open") subLabel += " · не завершена";
   const { noSets, lines } = groupSessionSets(session, state.sets, planForSession(session));
   return {
@@ -1383,7 +1391,7 @@ function renderDemoSession() {
     pillLabel: "Силовая B · Неделя 6",
     techniqueImg: techniqueImage(item.exercise),
     exercise: item.exercise,
-    schemeLine: `${humanScheme(item.scheme, 2)} · усилие ${item.targetRpe}/10`,
+    schemeLine: humanScheme(item.scheme, 2),
     note: item.note,
     lastSetsText: formatLastSets(demoLast),
     lastSetLabels: demoLast.map((set) => formatLastSets([set])),
@@ -1546,8 +1554,8 @@ function bindEvents() {
   }
   screens.on("session-timer", "click", () => startTimer(state.timer.durationSec));
 
-  screens.on("wellbeing-skip", "click", () => guarded(onWellbeingSkip));
   screens.on("done-back", "click", goToday);
+  screens.on("done-edit", "click", onDoneEdit);
 
   screens.on("run-done", "click", () => guarded(onRunDone));
 
@@ -1579,7 +1587,6 @@ function bindEvents() {
 }
 
 async function init() {
-  screens.initWellbeingGrid((n) => guarded(() => onWellbeingPick(n)));
   screens.initSessionEffortGrid((n) => guarded(() => onEffortPick(n)));
 
   const params = new URLSearchParams(location.search);
