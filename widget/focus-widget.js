@@ -127,11 +127,12 @@ function addFocusRow(widget, item) {
   label.textColor = new Color(item.done ? "#68D982" : "#F2F2F7");
 }
 
-function buildWidget(snapshot, note) {
+function buildWidget(snapshot, note, gistId) {
   const widget = new ListWidget();
   widget.backgroundColor = new Color("#0C0D10");
   widget.setPadding(11, 11, 9, 11);
-  widget.url = snapshot && snapshot.appUrl ? snapshot.appUrl : TRAINER_URL;
+  const appUrl = snapshot && snapshot.appUrl ? snapshot.appUrl : TRAINER_URL;
+  widget.url = gistId ? `${appUrl}?focusGist=${encodeURIComponent(gistId)}` : appUrl;
   widget.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000);
 
   if (!snapshot) {
@@ -178,7 +179,7 @@ if (!/^[a-f0-9]+$/i.test(gistId)) {
   }
 }
 
-const widget = buildWidget(snapshot, note);
+const widget = buildWidget(snapshot, note, gistId);
 Script.setWidget(widget);
 if (!config.runsInWidget) await widget.presentSmall();
 Script.complete();

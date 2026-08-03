@@ -10,7 +10,7 @@ import { buildBackup, validateBackup } from "../core/backup.js";
 import { latestWeigh, weighDeltas, sortedByDateDesc, daysSince, METRICS, BODYCOMP_METRICS, metricHistory, metricDelta, deltaTone, parseWeighDraft } from "../core/weigh.js";
 import { DEFAULT_GOALS, dayTotals, scalePortion } from "../core/food.js";
 import { habitsViewModel, normalizeHabitsByDate, toggleHabit } from "../core/habits.js";
-import { buildFocusSnapshot, syncFocusGist } from "../core/focus-sync.js";
+import { buildFocusSnapshot, fetchFocusGist, syncFocusGist } from "../core/focus-sync.js";
 import { normalizeScheduleAdjustments, programStartForDate } from "../core/schedule.js";
 import { recognizeFood, recognizeWeights } from "../core/claude.js";
 import { compressImage } from "./image.js";
@@ -43,6 +43,7 @@ const state = {
   focusSyncBusy: false,
   focusSyncStatus: null,
   focusSyncError: null,
+  focusViewer: false,     // read-only просмотр, открытый тапом по Scriptable-виджету
   timer: { startedAt: null, durationSec: DEFAULT_REST_DURATION, running: false, finished: false },
   food: [],             // записи еды (все даты), зеркало store
   apiKey: null,          // ключ Claude API — только в meta, в бэкап не попадает
@@ -174,7 +175,27 @@ function renderTodayScreen() {
   screens.renderFoodTile(foodTileLabel());
 }
 
+async function initFocusViewer(gistId) {
+  state.focusViewer = true;
+  screens.showScreen("today");
+  screens.renderTabbar(null);
+  try {
+    const snapshot = await fetchFocusGist({ gistId });
+    const today = todayStr();
+    const doneIds = snapshot.date === today
+      ? snapshot.items.filter((item) => item?.done === true).map((item) => item.id)
+      : [];
+    state.habitsByDate = doneIds.length ? { [today]: doneIds } : {};
+    renderTodayScreen();
+    screens.renderFocusViewerNotice({ stale: snapshot.date !== today });
+  } catch (error) {
+    renderTodayScreen();
+    screens.renderFocusViewerNotice({ error: error?.message || "Не удалось загрузить фокусы." });
+  }
+}
+
 async function onHabitToggle(habitId) {
+  if (state.focusViewer) return;
   const today = todayStr();
   state.habitsByDate = toggleHabit(state.habitsByDate, today, habitId);
   await store.setMeta("habitsByDate", state.habitsByDate);
@@ -1684,6 +1705,11 @@ async function init() {
   screens.initSessionEffortGrid();
 
   const params = new URLSearchParams(location.search);
+  const focusGistId = params.get("focusGist");
+  if (focusGistId) {
+    await initFocusViewer(focusGistId);
+    return;
+  }
   if (params.get("screen") === "session-demo") {
     bindEvents();
     renderDemoSession();

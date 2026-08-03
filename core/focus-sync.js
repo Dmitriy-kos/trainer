@@ -40,7 +40,7 @@ function cleanGistId(gistId) {
   return GIST_ID_RE.test(value) ? value : "";
 }
 
-async function githubError(response) {
+async function githubError(response, { authenticated = true } = {}) {
   let detail = "";
   try {
     const body = await response.json();
@@ -53,12 +53,50 @@ async function githubError(response) {
     return new Error("GitHub не принял токен. Проверь токен и попробуй ещё раз.");
   }
   if (response.status === 403) {
-    return new Error("Токену не хватает права Gists: Read and write.");
+    return new Error(authenticated
+      ? "Токену не хватает права Gists: Read and write."
+      : "GitHub временно ограничил просмотр синхронизации. Попробуй ещё раз позже.");
   }
   if (response.status === 404) {
     return new Error("Синхронизация виджета не найдена. Подключи виджет заново.");
   }
   return new Error(`GitHub вернул ошибку ${response.status}${detail ? `: ${detail}` : "."}`);
+}
+
+export async function fetchFocusGist({ gistId, fetchImpl = fetch }) {
+  const id = cleanGistId(gistId);
+  if (!id) throw new Error("Некорректный идентификатор синхронизации.");
+
+  let response;
+  try {
+    response = await fetchImpl(`${GITHUB_API}/gists/${id}`, {
+      method: "GET",
+      headers: {
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+  } catch {
+    throw new Error("Не удалось загрузить фокусы. Проверь интернет.");
+  }
+  if (!response.ok) throw await githubError(response, { authenticated: false });
+
+  const result = await response.json();
+  const file = result?.files?.[FOCUS_GIST_FILENAME];
+  if (!file || typeof file.content !== "string") {
+    throw new Error("В синхронизации нет данных фокусов.");
+  }
+
+  let snapshot;
+  try {
+    snapshot = JSON.parse(file.content);
+  } catch {
+    throw new Error("Данные фокусов повреждены.");
+  }
+  if (!snapshot || !Array.isArray(snapshot.items)) {
+    throw new Error("В синхронизации нет списка фокусов.");
+  }
+  return snapshot;
 }
 
 async function gistRequest(path, { token, method, body, fetchImpl = fetch }) {

@@ -120,6 +120,18 @@ export function renderFocusWidgetSettings({ connected, gistId, busy, status, err
   errorEl.textContent = error ?? "";
 }
 
+export function renderFocusViewerNotice({ stale = false, error = "" } = {}) {
+  document.body.classList.add("focus-viewer");
+  $("focus-widget-settings").hidden = true;
+  const notice = $("focus-viewer-notice");
+  notice.hidden = false;
+  notice.textContent = error
+    ? `${error} Открой «Тренер» с иконки приложения для отметок.`
+    : stale
+      ? "Показаны данные последнего дня. Для сегодняшних отметок открой «Тренер» с иконки приложения."
+      : "Это просмотр из виджета. Для отметки фокуса открой «Тренер» с иконки приложения.";
+}
+
 export function getFocusWidgetToken() {
   return $("focus-widget-token").value.trim();
 }
