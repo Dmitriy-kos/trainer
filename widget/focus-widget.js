@@ -19,6 +19,7 @@ function canonicalItems() {
     { id: "meditation", icon: "🧘", label: "Медитация", done: false },
     { id: "protein", icon: "🥤", label: "Протеин", done: false },
     { id: "creatine", icon: "⚡", label: "Креатин", done: false },
+    { id: "audiobook", icon: "🎧", label: "Книга", done: false },
   ];
 }
 
@@ -36,17 +37,26 @@ function normalizeSnapshot(value) {
     return { date: localDate(), appUrl: value.appUrl || TRAINER_URL, items: canonicalItems() };
   }
 
-  const items = value.items
-    .filter((item) => item && typeof item.id === "string")
-    .map((item, order) => ({
-      id: item.id,
-      icon: item.icon || "•",
-      label: shortLabel(item),
-      done: item.done === true,
-      order,
-    }))
+  // Миграция v32 → v33: старый Gist содержит четыре строки. Дополняем его
+  // «Книгой» как невыполненной, поэтому новый скрипт работает ещё до первого
+  // открытия обновлённого PWA. Неизвестные/удалённые строки игнорируем.
+  const received = new Map(
+    value.items
+      .filter((item) => item && typeof item.id === "string")
+      .map((item) => [item.id, item]),
+  );
+  const items = canonicalItems()
+    .map((base, order) => {
+      const item = received.get(base.id);
+      return {
+        ...base,
+        icon: item && item.icon ? item.icon : base.icon,
+        label: base.label,
+        done: item ? item.done === true : false,
+        order,
+      };
+    })
     .sort((a, b) => Number(a.done) - Number(b.done) || a.order - b.order);
-  if (items.length !== 4) throw new Error("Неполные данные");
   return { ...value, items };
 }
 
@@ -84,16 +94,16 @@ async function loadSnapshot(gistId) {
   return snapshot;
 }
 
-function addHeader(widget, done) {
+function addHeader(widget, done, total) {
   const header = widget.addStack();
   header.centerAlignContent();
   const title = header.addText("ФОКУС");
   title.font = Font.boldSystemFont(10);
   title.textColor = new Color("#2997FF");
   header.addSpacer();
-  const count = header.addText(`${done}/4`);
+  const count = header.addText(`${done}/${total}`);
   count.font = Font.boldSystemFont(10);
-  count.textColor = done === 4 ? new Color("#30D158") : new Color("#8E8E93");
+  count.textColor = done === total ? new Color("#30D158") : new Color("#8E8E93");
 }
 
 function addFocusRow(widget, item) {
@@ -137,11 +147,11 @@ function buildWidget(snapshot, note) {
   }
 
   const done = snapshot.items.filter((item) => item.done).length;
-  addHeader(widget, done);
+  addHeader(widget, done, snapshot.items.length);
   widget.addSpacer(5);
   snapshot.items.forEach((item, index) => {
     addFocusRow(widget, item);
-    if (index < snapshot.items.length - 1) widget.addSpacer(4);
+    if (index < snapshot.items.length - 1) widget.addSpacer(3);
   });
   if (note) {
     widget.addSpacer(3);

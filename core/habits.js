@@ -3,6 +3,7 @@ export const DAILY_HABITS = Object.freeze([
   Object.freeze({ id: "meditation", icon: "🧘", label: "Сделал медитацию" }),
   Object.freeze({ id: "protein", icon: "🥤", label: "Выпил протеин" }),
   Object.freeze({ id: "creatine", icon: "⚡", label: "Выпил креатин" }),
+  Object.freeze({ id: "audiobook", icon: "🎧", label: "Прослушал книгу" }),
 ]);
 
 const HABIT_IDS = new Set(DAILY_HABITS.map((habit) => habit.id));

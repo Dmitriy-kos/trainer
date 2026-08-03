@@ -91,7 +91,7 @@ export async function createFocusGist({ token, snapshot, fetchImpl = fetch }) {
     method: "POST",
     fetchImpl,
     body: {
-      description: "Тренер — четыре фокуса дня для iPhone-виджета",
+      description: "Тренер — пять фокусов дня для iPhone-виджета",
       public: false,
       files: {
         [FOCUS_GIST_FILENAME]: { content: focusGistContent(snapshot) },

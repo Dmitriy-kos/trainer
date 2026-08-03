@@ -37,7 +37,7 @@ const state = {
   boostDay: null,        // «P1»/«P2», если сегодня беговой день недель 6-7 с опцией подкачки; null = плитку не показывать
   pullupMax: null,       // {value, date} | null — сохранённый максимум строгих подтягиваний
   lastBackupDate: null,  // дата последней резервной копии (meta) — плитка-напоминание на «Сегодня»
-  habitsByDate: {},      // дневные отметки четырёх фокусов: { YYYY-MM-DD: [habitId] }
+  habitsByDate: {},      // дневные отметки пяти фокусов: { YYYY-MM-DD: [habitId] }
   focusSyncToken: null,  // GitHub PAT для secret Gist — только meta, в бэкап не попадает
   focusSyncGistId: null, // id secret Gist, который читает Scriptable-виджет
   focusSyncBusy: false,
@@ -1607,6 +1607,7 @@ function bindEvents() {
   screens.on("habit-meditation", "click", () => guarded(() => onHabitToggle("meditation")));
   screens.on("habit-protein", "click", () => guarded(() => onHabitToggle("protein")));
   screens.on("habit-creatine", "click", () => guarded(() => onHabitToggle("creatine")));
+  screens.on("habit-audiobook", "click", () => guarded(() => onHabitToggle("audiobook")));
   screens.on("focus-widget-connect", "click", () => guarded(onFocusWidgetConnect));
   screens.on("focus-widget-copy", "click", onFocusWidgetCopy);
   screens.on("focus-widget-reset", "click", () => guarded(onFocusWidgetReset));
