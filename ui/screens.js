@@ -21,7 +21,6 @@ export function showScreen(name) {
   document.body.classList.toggle("no-tabbar", !isTabScreen);
   document.body.classList.toggle("session-mode", name === "session");
   if (name !== "session") {
-    $("session-technique").hidden = true;
     $("session-effort").hidden = true;
   }
 }
@@ -101,6 +100,43 @@ export function renderHabits({ items, done, total }) {
     row.setAttribute("aria-pressed", String(item.done));
     row.querySelector(".habit-check").textContent = item.done ? "✓" : "";
   }
+}
+
+export function renderFocusWidgetSettings({ connected, gistId, busy, status, error }) {
+  $("focus-widget-disconnected").hidden = connected;
+  $("focus-widget-connected").hidden = !connected;
+  $("focus-widget-gist-id").value = gistId ?? "";
+
+  const connect = $("focus-widget-connect");
+  connect.disabled = !!busy;
+  connect.textContent = busy ? "Подключаю…" : "Подключить виджет";
+
+  const statusEl = $("focus-widget-status");
+  statusEl.hidden = !status;
+  statusEl.textContent = status ?? "";
+
+  const errorEl = $("focus-widget-error");
+  errorEl.hidden = !error;
+  errorEl.textContent = error ?? "";
+}
+
+export function getFocusWidgetToken() {
+  return $("focus-widget-token").value.trim();
+}
+
+export function clearFocusWidgetToken() {
+  $("focus-widget-token").value = "";
+}
+
+export async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const input = $("focus-widget-gist-id");
+  input.focus();
+  input.select();
+  if (!document.execCommand("copy")) throw new Error("copy failed");
 }
 
 export function showTodayError(msg) {
@@ -326,21 +362,6 @@ export function renderSession(vm, onStripTap) {
   $("session-step").textContent = vm.stepLabel;
   $("session-pill").textContent = vm.pillLabel;
 
-  const img = $("session-technique-img");
-  const techniqueWrap = $("session-technique");
-  const techniqueOpen = $("session-technique-open");
-  if (vm.techniqueImg) {
-    img.src = vm.techniqueImg;
-    img.alt = vm.exercise;
-    techniqueOpen.hidden = false;
-  } else {
-    img.removeAttribute("src");
-    img.alt = "";
-    techniqueOpen.hidden = true;
-  }
-  techniqueWrap.hidden = true;
-  $("session-technique-title").textContent = `Техника: ${vm.exercise}`;
-
   $("session-exercise").textContent = vm.exercise;
   const schemeWrap = $("session-scheme");
   schemeWrap.textContent = "";
@@ -423,16 +444,9 @@ export function renderSession(vm, onStripTap) {
   renderFlash($("session-flash"), vm.flash);
 }
 
-export function showSessionTechnique(open) {
-  const overlay = $("session-technique");
-  const trigger = $("session-technique-open");
-  if (open && trigger.hidden) return;
-  overlay.hidden = !open;
-  if (open) $("session-technique-close").focus();
-  else trigger.focus();
-}
+let sessionEffortSelection = null;
 
-export function initSessionEffortGrid(onPick) {
+export function initSessionEffortGrid() {
   const grid = $("session-effort-grid");
   grid.textContent = "";
   for (let n = 1; n <= 10; n++) {
@@ -441,7 +455,16 @@ export function initSessionEffortGrid(onPick) {
     btn.className = "effort-button";
     btn.textContent = String(n);
     btn.setAttribute("aria-label", `Фактическое усилие ${n} из 10`);
-    btn.addEventListener("click", () => onPick(n));
+    btn.setAttribute("aria-pressed", "false");
+    btn.addEventListener("click", () => {
+      sessionEffortSelection = n;
+      for (const item of grid.children) {
+        const selected = item === btn;
+        item.classList.toggle("selected", selected);
+        item.setAttribute("aria-pressed", String(selected));
+      }
+      $("session-effort-save").disabled = false;
+    });
     grid.appendChild(btn);
   }
 }
@@ -454,12 +477,22 @@ export function showSessionEffort(vm) {
   }
   $("session-effort-exercise").textContent = vm.exercise;
   $("session-effort-comment").value = vm.comment ?? "";
+  sessionEffortSelection = null;
+  for (const item of $("session-effort-grid").children) {
+    item.classList.remove("selected");
+    item.setAttribute("aria-pressed", "false");
+  }
+  $("session-effort-save").disabled = true;
   overlay.hidden = false;
   $("session-effort-sheet").focus();
 }
 
 export function getSessionEffortComment() {
   return $("session-effort-comment").value;
+}
+
+export function getSessionEffortSelection() {
+  return sessionEffortSelection;
 }
 
 function renderStrip(strip, onStripTap) {

@@ -4,12 +4,13 @@
 import * as store from "../core/store.js";
 import { autoregulationHint, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, restAlertSecond, formatRest, withActualEffort, restPresetDurations, backupReminder } from "../core/logic.js";
 import { parseSetInput, formatLastSets, formatWorkoutDate, schemeTargetReps, latestCacheVersion, humanScheme } from "../core/format.js";
-import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, techniqueImage, DAY_PLANS, globalWeekNumber } from "../core/plan.js";
+import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, DAY_PLANS, globalWeekNumber } from "../core/plan.js";
 import { lastSets, lastExerciseComment, withExerciseComment, sessionSummary, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
 import { latestWeigh, weighDeltas, sortedByDateDesc, daysSince, METRICS, BODYCOMP_METRICS, metricHistory, metricDelta, deltaTone, parseWeighDraft } from "../core/weigh.js";
 import { DEFAULT_GOALS, dayTotals, scalePortion } from "../core/food.js";
 import { habitsViewModel, normalizeHabitsByDate, toggleHabit } from "../core/habits.js";
+import { buildFocusSnapshot, syncFocusGist } from "../core/focus-sync.js";
 import { normalizeScheduleAdjustments, programStartForDate } from "../core/schedule.js";
 import { recognizeFood, recognizeWeights } from "../core/claude.js";
 import { compressImage } from "./image.js";
@@ -36,7 +37,12 @@ const state = {
   boostDay: null,        // «P1»/«P2», если сегодня беговой день недель 6-7 с опцией подкачки; null = плитку не показывать
   pullupMax: null,       // {value, date} | null — сохранённый максимум строгих подтягиваний
   lastBackupDate: null,  // дата последней резервной копии (meta) — плитка-напоминание на «Сегодня»
-  habitsByDate: {},      // дневные отметки трёх фокусов: { YYYY-MM-DD: [habitId] }
+  habitsByDate: {},      // дневные отметки четырёх фокусов: { YYYY-MM-DD: [habitId] }
+  focusSyncToken: null,  // GitHub PAT для secret Gist — только meta, в бэкап не попадает
+  focusSyncGistId: null, // id secret Gist, который читает Scriptable-виджет
+  focusSyncBusy: false,
+  focusSyncStatus: null,
+  focusSyncError: null,
   timer: { startedAt: null, durationSec: DEFAULT_REST_DURATION, running: false, finished: false },
   food: [],             // записи еды (все даты), зеркало store
   apiKey: null,          // ключ Claude API — только в meta, в бэкап не попадает
@@ -164,6 +170,7 @@ function renderTodayScreen() {
     weightsAccent,
   });
   screens.renderHabits(habitsViewModel(state.habitsByDate, today));
+  renderFocusWidgetSettings();
   screens.renderFoodTile(foodTileLabel());
 }
 
@@ -172,6 +179,94 @@ async function onHabitToggle(habitId) {
   state.habitsByDate = toggleHabit(state.habitsByDate, today, habitId);
   await store.setMeta("habitsByDate", state.habitsByDate);
   screens.renderHabits(habitsViewModel(state.habitsByDate, today));
+  scheduleFocusSync();
+}
+
+function renderFocusWidgetSettings() {
+  screens.renderFocusWidgetSettings({
+    connected: !!(state.focusSyncToken && state.focusSyncGistId),
+    gistId: state.focusSyncGistId,
+    busy: state.focusSyncBusy,
+    status: state.focusSyncStatus,
+    error: state.focusSyncError,
+  });
+}
+
+function focusSyncTime() {
+  return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date());
+}
+
+async function pushFocusSnapshot(token, gistId) {
+  const snapshot = buildFocusSnapshot(state.habitsByDate, todayStr());
+  return syncFocusGist({ token, gistId, snapshot });
+}
+
+async function onFocusWidgetConnect() {
+  const token = screens.getFocusWidgetToken();
+  state.focusSyncBusy = true;
+  state.focusSyncStatus = null;
+  state.focusSyncError = null;
+  renderFocusWidgetSettings();
+
+  try {
+    const result = await pushFocusSnapshot(token, null);
+    await store.setMeta("focusSyncToken", token);
+    await store.setMeta("focusSyncGistId", result.gistId);
+    state.focusSyncToken = token;
+    state.focusSyncGistId = result.gistId;
+    state.focusSyncStatus = "Готово. Скопируй код и установи виджет по инструкции.";
+    screens.clearFocusWidgetToken();
+  } catch (error) {
+    state.focusSyncError = error?.message || "Не удалось подключить виджет.";
+  } finally {
+    state.focusSyncBusy = false;
+    renderFocusWidgetSettings();
+  }
+}
+
+let focusSyncQueue = Promise.resolve();
+function scheduleFocusSync() {
+  if (!state.focusSyncToken || !state.focusSyncGistId) return;
+
+  state.focusSyncStatus = "Обновляю виджет…";
+  state.focusSyncError = null;
+  renderFocusWidgetSettings();
+  focusSyncQueue = focusSyncQueue
+    .catch(() => {})
+    .then(async () => {
+      await pushFocusSnapshot(state.focusSyncToken, state.focusSyncGistId);
+      state.focusSyncStatus = `Виджет обновлён в ${focusSyncTime()}`;
+      state.focusSyncError = null;
+      renderFocusWidgetSettings();
+    })
+    .catch((error) => {
+      state.focusSyncStatus = null;
+      state.focusSyncError = `${error?.message || "Не удалось обновить виджет."} Отметка в «Тренере» сохранена.`;
+      renderFocusWidgetSettings();
+    });
+}
+
+async function onFocusWidgetCopy() {
+  if (!state.focusSyncGistId) return;
+  try {
+    await screens.copyText(state.focusSyncGistId);
+    state.focusSyncStatus = "Код скопирован.";
+    state.focusSyncError = null;
+  } catch {
+    state.focusSyncStatus = null;
+    state.focusSyncError = "Не удалось скопировать автоматически. Выдели код вручную.";
+  }
+  renderFocusWidgetSettings();
+}
+
+async function onFocusWidgetReset() {
+  await store.setMeta("focusSyncToken", null);
+  await store.setMeta("focusSyncGistId", null);
+  state.focusSyncToken = null;
+  state.focusSyncGistId = null;
+  state.focusSyncStatus = "Подключение на этом iPhone сброшено.";
+  state.focusSyncError = null;
+  renderFocusWidgetSettings();
 }
 
 // ---------- Экран «Тренировка» ----------
@@ -643,7 +738,6 @@ function buildSessionVm() {
     stepLabel: `Осталось ${remaining} из ${state.exercises.length}`,
     pillLabel: `${dayTypeLabel(state.session.day)} · Неделя ${state.session.week}`,
     strip: state.exercises.map((it, i) => ({ status: statuses[i], here: i === idx, label: stripLabel(it.exercise) })),
-    techniqueImg: techniqueImage(item.exercise),
     exercise: item.exercise,
     schemeLine,
     pullupMaxLabel,
@@ -777,9 +871,11 @@ async function beginEffortCapture(item, rows, postFlash = null) {
   screens.showSessionEffort({ exercise: item.exercise, comment: pending.comment });
 }
 
-async function onEffortPick(actualRpe) {
+async function onEffortSave() {
   const draft = state.effortDraft;
   if (!draft) return;
+  const actualRpe = screens.getSessionEffortSelection();
+  if (actualRpe == null) return;
   const comment = screens.getSessionEffortComment();
   const rows = withActualEffort(draft.rows, actualRpe, draft.targetRpe);
   await store.replaceSets(draft.sessionId, draft.exercise, rows);
@@ -1389,7 +1485,6 @@ function renderDemoSession() {
   screens.renderSession({
     stepLabel: "Осталось 4 из 5",
     pillLabel: "Силовая B · Неделя 6",
-    techniqueImg: techniqueImage(item.exercise),
     exercise: item.exercise,
     schemeLine: humanScheme(item.scheme, 2),
     note: item.note,
@@ -1500,13 +1595,7 @@ async function guarded(fn) {
   try { await fn(); } finally { busy = false; }
 }
 
-function bindSessionTechniqueEvents() {
-  screens.on("session-technique-open", "click", () => screens.showSessionTechnique(true));
-  screens.on("session-technique-close", "click", () => screens.showSessionTechnique(false));
-}
-
 function bindEvents() {
-  bindSessionTechniqueEvents();
   screens.on("btn-day-a", "click", () => guarded(() => onStartStrength("A")));
   screens.on("btn-day-b", "click", () => guarded(() => onStartStrength("B")));
   screens.on("btn-day-c", "click", () => guarded(() => onStartStrength("C")));
@@ -1518,6 +1607,9 @@ function bindEvents() {
   screens.on("habit-meditation", "click", () => guarded(() => onHabitToggle("meditation")));
   screens.on("habit-protein", "click", () => guarded(() => onHabitToggle("protein")));
   screens.on("habit-creatine", "click", () => guarded(() => onHabitToggle("creatine")));
+  screens.on("focus-widget-connect", "click", () => guarded(onFocusWidgetConnect));
+  screens.on("focus-widget-copy", "click", onFocusWidgetCopy);
+  screens.on("focus-widget-reset", "click", () => guarded(onFocusWidgetReset));
 
   // Вкладки нижней панели + плитки-разделы хаба.
   screens.on("tab-today", "click", goToday);
@@ -1546,6 +1638,7 @@ function bindEvents() {
   screens.on("session-skip", "click", () => guarded(onSkip));
   screens.on("session-back", "click", () => guarded(onBack));
   screens.on("session-forward", "click", () => guarded(onForward));
+  screens.on("session-effort-save", "click", () => guarded(onEffortSave));
 
   // Таймер отдыха ничего не пишет в БД — без guarded (иначе тап блокировался
   // бы, пока идёт запись подхода).
@@ -1587,7 +1680,7 @@ function bindEvents() {
 }
 
 async function init() {
-  screens.initSessionEffortGrid((n) => guarded(() => onEffortPick(n)));
+  screens.initSessionEffortGrid();
 
   const params = new URLSearchParams(location.search);
   if (params.get("screen") === "session-demo") {
@@ -1640,6 +1733,8 @@ async function init() {
   state.pullupMax = (await store.getMeta("pullupMax")) ?? null;
   state.lastBackupDate = (await store.getMeta("lastBackupDate")) ?? null;
   state.habitsByDate = normalizeHabitsByDate((await store.getMeta("habitsByDate")) ?? {});
+  state.focusSyncToken = (await store.getMeta("focusSyncToken")) ?? null;
+  state.focusSyncGistId = (await store.getMeta("focusSyncGistId")) ?? null;
   state.pendingEffort = (await store.getMeta("pendingEffort")) ?? null;
   state.apiKey = (await store.getMeta("apiKey")) ?? null;
   state.foodGoals = (await store.getMeta("foodGoals")) ?? { ...DEFAULT_GOALS };
@@ -1659,6 +1754,7 @@ async function init() {
   }
 
   goToday();
+  scheduleFocusSync();
 
   if ("caches" in window) {
     try {

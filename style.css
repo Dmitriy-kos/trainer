@@ -107,53 +107,95 @@ body.no-tabbar { padding-bottom: 0; } /* панель скрыта в фокус
 .habit-row.done .habit-name { color: #636366; }
 .habit-row:active { opacity: .58; }
 
+.focus-widget-settings {
+  margin-top: 5px;
+  border-top: 1px solid #EFEFF4;
+}
+.focus-widget-settings summary {
+  padding: 13px 2px 8px;
+  color: #0A84FF;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+  list-style-position: inside;
+}
+.focus-widget-body { padding: 3px 2px 6px; }
+.focus-widget-lead,
+.focus-widget-privacy,
+.focus-widget-status {
+  color: #636366;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.focus-widget-steps {
+  margin: 10px 0 8px 18px;
+  color: #3A3A3C;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.focus-widget-link {
+  display: inline-block;
+  margin: 4px 0 10px;
+  color: #0A84FF;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.focus-widget-label {
+  display: block;
+  margin: 4px 0 6px;
+  color: #3A3A3C;
+  font-size: 11px;
+  font-weight: 750;
+}
+.focus-widget-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 11px;
+  border: 1px solid #D1D1D6;
+  border-radius: 11px;
+  outline: none;
+  background: #F7F7FA;
+  color: #0B0B0F;
+  font: inherit;
+  font-size: 13px;
+}
+.focus-widget-input:focus { border-color: #0A84FF; background: #fff; }
+.focus-widget-settings .btn-wide { margin-top: 8px; }
+.focus-widget-privacy { margin-top: 8px; color: #8E8E93; font-size: 11px; }
+.focus-widget-ready {
+  margin: 6px 0 12px;
+  color: #248A3D;
+  font-size: 13px;
+  font-weight: 800;
+}
+.focus-widget-code-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+.focus-widget-code-row .btn { min-height: 42px; padding: 0 12px; }
+.focus-widget-download {
+  display: block;
+  color: #0A84FF;
+  background: #E5F0FF;
+  text-align: center;
+  text-decoration: none;
+}
+.focus-widget-reset {
+  display: block;
+  margin: 4px 0 0;
+  border: 0;
+  color: #8E8E93;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.focus-widget-status { margin-top: 9px; color: #248A3D; font-weight: 700; }
+.focus-widget-error { margin-top: 9px; }
+
 .note { font-size: 13px; color: #8E8E93; margin-top: 8px; line-height: 1.35; }
 
 .mini .l { font-size: 12px; color: #8E8E93; font-weight: 600; margin-bottom: 6px; }
 .mini .v { font-size: 19px; font-weight: 800; letter-spacing: -.01em; }
-
-.technique-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
-  background: rgba(11, 11, 15, .55);
-}
-.technique-sheet {
-  width: min(480px, 100%);
-  max-height: 100%;
-  overflow: auto;
-  background: #fff;
-  border-radius: 24px;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, .22);
-}
-.technique-sheet-head {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  background: rgba(255, 255, 255, .94);
-  border-bottom: 1px solid #EFEFF4;
-}
-.technique-close, .technique-open {
-  border: 0;
-  border-radius: 100px;
-  padding: 8px 12px;
-  color: #0A84FF;
-  background: #E5F0FF;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.technique-sheet img { width: 100%; display: block; }
 
 .effort-overlay {
   position: fixed;
@@ -234,6 +276,11 @@ body.no-tabbar { padding-bottom: 0; } /* панель скрыта в фокус
   cursor: pointer;
 }
 .effort-button:active { background: #DDEBFF; color: #0A84FF; }
+.effort-button.selected {
+  color: #fff;
+  background: #0A84FF;
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, .18);
+}
 .effort-scale-help {
   display: flex;
   justify-content: space-between;
@@ -254,6 +301,7 @@ body.no-tabbar { padding-bottom: 0; } /* панель скрыта в фокус
   line-height: 1.35;
   text-align: center;
 }
+.effort-save { margin-top: 14px; }
 
 .session-exercise-head {
   display: flex;

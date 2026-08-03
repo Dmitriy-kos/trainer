@@ -54,6 +54,39 @@
           <span class="habit-name">Выпил креатин</span>
         </button>
       </div>
+      <details class="focus-widget-settings" id="focus-widget-settings">
+        <summary>Виджет iPhone</summary>
+        <div class="focus-widget-body">
+          <p class="focus-widget-lead">Отмечай фокусы здесь. Виджет на главном экране только показывает их и по нажатию открывает «Тренер».</p>
+
+          <div id="focus-widget-disconnected">
+            <ol class="focus-widget-steps">
+              <li>Создай бесплатный GitHub-токен с единственным правом <b>Gists: Read and write</b>.</li>
+              <li>Вставь его ниже — приложение само создаст secret Gist.</li>
+            </ol>
+            <a class="focus-widget-link" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">Создать токен на GitHub ↗</a>
+            <label class="focus-widget-label" for="focus-widget-token">GitHub-токен</label>
+            <input type="password" id="focus-widget-token" class="focus-widget-input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…">
+            <button type="button" class="btn btn-accent btn-wide" id="focus-widget-connect">Подключить виджет</button>
+            <p class="focus-widget-privacy">Токен хранится только на этом iPhone и не входит в резервную копию. В Gist передаются лишь четыре отметки за сегодня.</p>
+          </div>
+
+          <div id="focus-widget-connected" hidden>
+            <div class="focus-widget-ready">✓ Синхронизация подключена</div>
+            <label class="focus-widget-label" for="focus-widget-gist-id">Код виджета для Scriptable</label>
+            <div class="focus-widget-code-row">
+              <input type="text" id="focus-widget-gist-id" class="focus-widget-input" readonly>
+              <button type="button" class="btn" id="focus-widget-copy">Копировать</button>
+            </div>
+            <a class="btn btn-wide focus-widget-download" id="focus-widget-download" href="widget/focus-widget.js" download="Фокусы дня.js">Скачать скрипт виджета</a>
+            <a class="focus-widget-link" href="widget/setup.html" target="_blank">Инструкция установки ↗</a>
+            <button type="button" class="focus-widget-reset" id="focus-widget-reset">Сбросить подключение на этом iPhone</button>
+          </div>
+
+          <p class="focus-widget-status" id="focus-widget-status" hidden></p>
+          <p class="error focus-widget-error" id="focus-widget-error" hidden></p>
+        </div>
+      </details>
     </div>
 
     <button type="button" class="card card-btn" id="hub-workout-tile">
@@ -127,16 +160,6 @@
 
     <div class="card flash" id="session-flash" hidden></div>
 
-    <div class="technique-overlay" id="session-technique" hidden>
-      <div class="technique-sheet" role="dialog" aria-modal="true" aria-labelledby="session-technique-title">
-        <div class="technique-sheet-head">
-          <strong id="session-technique-title">Техника упражнения</strong>
-          <button type="button" class="technique-close" id="session-technique-close" aria-label="Закрыть технику">Готово</button>
-        </div>
-        <img id="session-technique-img" alt="">
-      </div>
-    </div>
-
     <div class="effort-overlay" id="session-effort" hidden>
       <div class="effort-sheet" id="session-effort-sheet" role="dialog" aria-modal="true" aria-labelledby="session-effort-title" tabindex="-1">
         <div class="session-eyebrow">Упражнение записано</div>
@@ -148,6 +171,7 @@
         <div class="effort-grid" id="session-effort-grid" aria-label="Фактическое усилие от 1 до 10"></div>
         <div class="effort-scale-help"><span>1 — очень легко</span><span>10 — предел</span></div>
         <p class="effort-rir">7 ≈ осталось 3 повтора · 8 ≈ 2 · 9 ≈ 1</p>
+        <button type="button" class="btn btn-accent btn-wide effort-save" id="session-effort-save" disabled>Сохранить</button>
       </div>
     </div>
 
@@ -157,7 +181,6 @@
           <div class="session-eyebrow">Текущее упражнение</div>
           <h1 id="session-exercise"></h1>
         </div>
-        <button type="button" class="technique-open" id="session-technique-open" hidden>Техника</button>
       </div>
       <div class="session-scheme-chips" id="session-scheme"></div>
       <div class="note" id="session-note" hidden></div>

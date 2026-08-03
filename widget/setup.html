@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C0D10">
+<title>Установка виджета «Фокусы дня»</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#0c0d10;color:#f2f2f7;font-family:-apple-system,system-ui,sans-serif}main{max-width:560px;margin:auto;padding:calc(24px + env(safe-area-inset-top)) 18px calc(36px + env(safe-area-inset-bottom))}h1{margin:0 0 8px;font-size:28px;letter-spacing:-.03em}.lead{margin:0 0 20px;color:#a1a1a6;line-height:1.45}.card{margin:12px 0;padding:17px;border:1px solid #2c2c2e;border-radius:18px;background:#17171a}.n{display:grid;place-items:center;width:28px;height:28px;margin-bottom:10px;border-radius:50%;background:#0a84ff;font-weight:800}h2{margin:0 0 8px;font-size:18px}p,li{color:#c7c7cc;font-size:15px;line-height:1.45}ol{margin:8px 0 0;padding-left:22px}a,.button{color:#2997ff}.button{display:block;width:100%;margin-top:12px;padding:13px;border:0;border-radius:13px;background:#0a84ff;color:white;font:inherit;font-weight:750;text-align:center;text-decoration:none;cursor:pointer}.button.secondary{background:#242f3d;color:#64b5ff}.small{color:#8e8e93;font-size:12px}.ok{color:#30d158}code{color:#f2f2f7}#copy-result{min-height:18px;margin-top:8px}.back{display:inline-block;margin-top:12px;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+  <h1>Фокусы дня</h1>
+  <p class="lead">Бесплатный маленький виджет для iPhone. Отметки ставятся в «Тренере»; нажатие на виджет открывает приложение.</p>
+
+  <section class="card">
+    <div class="n">1</div>
+    <h2>Установи Scriptable</h2>
+    <p>Это бесплатное приложение, которое показывает наш виджет без подписки Apple Developer.</p>
+    <a class="button secondary" href="https://apps.apple.com/app/scriptable/id1405459188">Открыть Scriptable в App Store</a>
+  </section>
+
+  <section class="card">
+    <div class="n">2</div>
+    <h2>Добавь скрипт</h2>
+    <ol>
+      <li>Нажми «Скопировать скрипт».</li>
+      <li>В Scriptable нажми <b>+</b>, вставь код и назови его <b>Фокусы дня</b>.</li>
+      <li>Один раз запусти скрипт — откроется предварительный вид.</li>
+    </ol>
+    <button class="button" id="copy-script">Скопировать скрипт</button>
+    <p class="small" id="copy-result"></p>
+  </section>
+
+  <section class="card">
+    <div class="n">3</div>
+    <h2>Выведи на главный экран</h2>
+    <ol>
+      <li>Зажми пустое место на экране iPhone → <b>Изменить</b> → <b>Добавить виджет</b>.</li>
+      <li>Выбери <b>Scriptable</b> и маленький квадратный размер.</li>
+      <li>Зажми добавленный виджет → <b>Изменить виджет</b>.</li>
+      <li>Script: <b>Фокусы дня</b>. Parameter: вставь код из раздела «Виджет iPhone» в «Тренере».</li>
+    </ol>
+  </section>
+
+  <section class="card">
+    <h2 class="ok">Как это работает</h2>
+    <p>После отметки «Тренер» сразу отправляет новые состояния. iOS обновляет виджеты по своему расписанию, поэтому галочка иногда появится не мгновенно. Тап по виджету откроет «Тренер».</p>
+    <p class="small">Secret Gist не показывается в профиле GitHub, но человек с его длинной ссылкой может прочитать четыре статуса. Другие данные приложения туда не передаются.</p>
+  </section>
+
+  <a class="back" href="../">← Вернуться в «Тренер»</a>
+</main>
+<script>
+document.getElementById("copy-script").addEventListener("click", async () => {
+  const result = document.getElementById("copy-result");
+  try {
+    const response = await fetch("focus-widget.js");
+    if (!response.ok) throw new Error();
+    await navigator.clipboard.writeText(await response.text());
+    result.textContent = "✓ Скрипт скопирован";
+    result.className = "small ok";
+  } catch {
+    result.innerHTML = 'Не получилось скопировать. <a href="focus-widget.js">Открой код</a>, выдели всё и скопируй вручную.';
+  }
+});
+</script>
+</body>
+</html>
