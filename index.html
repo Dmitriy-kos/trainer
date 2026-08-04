@@ -14,11 +14,6 @@
 
   <!-- Экран: Сегодня (хаб) -->
   <section id="screen-today">
-    <div class="card big">
-      <h1 id="today-title"></h1>
-      <div class="s" id="today-week"></div>
-    </div>
-
     <button type="button" class="card accent card-btn" id="resume-tile" hidden></button>
     <button type="button" class="card card-btn" id="backup-tile" hidden></button>
 
@@ -107,17 +102,15 @@
       <div class="history-sub" id="hub-weights-sub"></div>
     </button>
 
-    <button type="button" class="card card-btn" id="hub-history-tile">
-      <div class="history-title">🕓 История</div>
-    </button>
-
     <div class="error" id="today-error" hidden></div>
   </section>
 
   <!-- Экран: Тренировка -->
   <section id="screen-workout" hidden>
     <div class="card big">
+      <div class="workout-eyebrow">ПЛАН НА СЕГОДНЯ</div>
       <h1 id="workout-title"></h1>
+      <div class="workout-guidance-label">КАК ТРЕНИРОВАТЬСЯ НА ЭТОЙ НЕДЕЛЕ</div>
       <div class="s" id="workout-week"></div>
     </div>
 
@@ -137,6 +130,10 @@
       <button type="button" class="btn" id="btn-day-c">Силовая C</button>
       <button type="button" class="btn" id="btn-run">Бег 🏃</button>
     </div>
+
+    <button type="button" class="card card-btn" id="workout-history-tile">
+      <div class="history-title">🕓 История тренировок</div>
+    </button>
   </section>
 
   <!-- Экран: История -->
@@ -153,7 +150,7 @@
     <input type="file" id="history-file-input" accept="application/json,.json" hidden>
     <div class="error" id="history-error" hidden></div>
 
-    <button type="button" class="btn btn-wide" id="btn-history-back">← Сегодня</button>
+    <button type="button" class="btn btn-wide" id="btn-history-back">← Тренировка</button>
 
     <div id="history-list"></div>
   </section>

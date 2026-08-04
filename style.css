@@ -25,6 +25,10 @@ body.no-tabbar { padding-bottom: 0; } /* панель скрыта в фокус
 .card { background: #fff; border-radius: 22px; padding: 20px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0, 0, 0, .04); }
 .card.big h1 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; margin-bottom: 6px; }
 .card.big .s { font-size: 15px; color: #8E8E93; font-weight: 600; }
+.workout-eyebrow,
+.workout-guidance-label { color: #8E8E93; font-size: 10px; font-weight: 800; letter-spacing: .06em; }
+.workout-eyebrow { margin-bottom: 4px; }
+.workout-guidance-label { margin: 14px 0 4px; }
 .card.accent { background: #0A84FF; color: #fff; }
 .card.accent .s { color: #cfe4ff; }
 .card.accent .history-sub { color: #cfe4ff; }
@@ -206,8 +210,7 @@ body.no-tabbar { padding-bottom: 0; } /* панель скрыта в фокус
 body.focus-viewer #tabbar,
 body.focus-viewer #hub-workout-tile,
 body.focus-viewer #food-tile,
-body.focus-viewer #hub-weights-tile,
-body.focus-viewer #hub-history-tile { display: none !important; }
+body.focus-viewer #hub-weights-tile { display: none !important; }
 body.focus-viewer .habit-row { pointer-events: none; cursor: default; }
 
 .note { font-size: 13px; color: #8E8E93; margin-top: 8px; line-height: 1.35; }

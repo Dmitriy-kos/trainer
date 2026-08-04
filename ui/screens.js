@@ -65,10 +65,7 @@ function renderFlash(el, flash) {
 
 // ---------- Сегодня (хаб) ----------
 
-export function renderToday({ hint, weekLabel, resumeLabel, backupLabel, workoutSub, weightsSub, weightsAccent }) {
-  $("today-title").textContent = hint;
-  $("today-week").textContent = weekLabel;
-
+export function renderToday({ resumeLabel, backupLabel, workoutSub, weightsSub, weightsAccent }) {
   const resumeTile = $("resume-tile");
   if (resumeLabel) {
     resumeTile.textContent = resumeLabel;
@@ -94,11 +91,13 @@ export function renderHabits({ items, done, total }) {
     : done === 0 ? "Отмечай одним нажатием" : `Осталось: ${total - done}`;
   $("habits-progress-fill").style.width = `${total > 0 ? Math.round((done / total) * 100) : 0}%`;
 
+  const list = document.querySelector(".habits-list");
   for (const item of items) {
     const row = $(`habit-${item.id}`);
     row.classList.toggle("done", item.done);
     row.setAttribute("aria-pressed", String(item.done));
     row.querySelector(".habit-check").textContent = item.done ? "✓" : "";
+    list.appendChild(row);
   }
 }
 

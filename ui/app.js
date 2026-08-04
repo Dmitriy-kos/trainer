@@ -136,9 +136,8 @@ function renderTodayScreen() {
   screens.showTodayError("");
   const weekday = todayWeekday();
   const today = todayStr();
-  const { number, week } = programForDate(activeProgramStart(today), today);
+  const { number } = programForDate(activeProgramStart(today), today);
   const program = programByNumber(number);
-  const hint = programWeekdayHint(program, weekday);
   const todayDay = programDayForWeekday(program, weekday);
   const unfinished = unfinishedSession(state.sessions);
 
@@ -158,12 +157,10 @@ function renderTodayScreen() {
 
   const dayLabel = todayDay ? `Силовая ${todayDay}` : "Бег/отдых";
   const pullupN = state.pullupMax ? state.pullupMax.value : "—";
-  const workoutSub = `по плану: ${dayLabel} · макс подтягиваний ${pullupN}`;
+  const workoutSub = `Сегодня: ${dayLabel} · максимум подтягиваний — ${pullupN}`;
   const { weightsSub, weightsAccent } = weightsHubVm(today, weekday);
 
   screens.renderToday({
-    hint,
-    weekLabel: `Месяц ${number} · ${program.weekLabels[week]}`,
     resumeLabel,
     backupLabel,
     workoutSub,
@@ -330,7 +327,7 @@ function renderWorkoutScreen() {
 
   screens.renderWorkout({
     hint,
-    weekLabel: `Месяц ${number} · ${program.weekLabels[week]}`,
+    weekLabel: program.weekLabels[week],
     todayDay,
     resumeLabel,
     measureLabel,
@@ -1592,11 +1589,9 @@ function renderDemoHub() {
   screens.showScreen("today");
   screens.renderTabbar("today");
   screens.renderToday({
-    hint: "Сегодня силовая C 💪",
-    weekLabel: "Месяц 2 · Неделя 3",
     resumeLabel: "Продолжить: Силовая B от 2026-07-08 (осталось 3 из 5)",
     backupLabel: "⚠️ Копию не делал 12 дн.",
-    workoutSub: "по плану: Силовая C · макс подтягиваний 7",
+    workoutSub: "Сегодня: Силовая C · максимум подтягиваний — 7",
     weightsSub: "Понедельник — день замера ⚖️",
     weightsAccent: true,
   });
@@ -1621,7 +1616,7 @@ function bindEvents() {
   screens.on("btn-day-b", "click", () => guarded(() => onStartStrength("B")));
   screens.on("btn-day-c", "click", () => guarded(() => onStartStrength("C")));
   screens.on("btn-run", "click", () => guarded(onStartRun));
-  screens.on("btn-history-back", "click", goToday);
+  screens.on("btn-history-back", "click", goWorkout);
   screens.on("resume-tile", "click", () => guarded(onResume));
   screens.on("backup-tile", "click", goHistory);
   screens.on("habit-fish_oil", "click", () => guarded(() => onHabitToggle("fish_oil")));
@@ -1640,7 +1635,6 @@ function bindEvents() {
   screens.on("tab-weights", "click", goWeights);
   screens.on("hub-workout-tile", "click", goWorkout);
   screens.on("hub-weights-tile", "click", goWeights);
-  screens.on("hub-history-tile", "click", goHistory);
 
   // Экран «Тренировка» — те же обработчики, что раньше висели на today
   // (measure-tile/today-pullup-tile), перевешаны на переехавшие id.
@@ -1648,6 +1642,7 @@ function bindEvents() {
   screens.on("workout-boost-tile", "click", () => guarded(() => state.boostDay && onStartStrength(state.boostDay)));
   screens.on("workout-pullup-tile", "click", () => guarded(onWorkoutPullupTap));
   screens.on("workout-resume-tile", "click", () => guarded(onResume));
+  screens.on("workout-history-tile", "click", goHistory);
 
   screens.on("history-export", "click", () => guarded(onExport));
   screens.on("history-import", "click", screens.openFilePicker);

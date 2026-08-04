@@ -39,6 +39,9 @@ export function toggleHabit(habitsByDate, date, habitId) {
 
 export function habitsViewModel(habitsByDate, date) {
   const completed = new Set(normalizeHabitsByDate(habitsByDate)[date] ?? []);
-  const items = DAILY_HABITS.map((habit) => ({ ...habit, done: completed.has(habit.id) }));
+  const items = DAILY_HABITS
+    .map((habit, order) => ({ ...habit, done: completed.has(habit.id), order }))
+    .sort((a, b) => Number(a.done) - Number(b.done) || a.order - b.order)
+    .map(({ order: _order, ...habit }) => habit);
   return { items, done: items.filter((item) => item.done).length, total: items.length };
 }
