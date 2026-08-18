@@ -95,7 +95,10 @@
       <div class="history-sub" id="hub-workout-sub"></div>
     </button>
 
-    <button type="button" class="card card-btn" id="food-tile">Еда 🍽</button>
+    <!-- Модуль еды временно убран из интерфейса (CEO 18.08.2026).
+         Экран, логика и данны сохранены; для возврата достаточно снять hidden
+         с #food-tile и #tab-food. -->
+    <button type="button" class="card card-btn" id="food-tile" hidden>Еда 🍽</button>
 
     <button type="button" class="card card-btn" id="hub-weights-tile">
       <div class="history-title">⚖️ Взвешивание</div>
@@ -408,7 +411,7 @@
 <nav id="tabbar">
   <button type="button" class="tab" id="tab-today"><span class="i">🏠</span>Сегодня</button>
   <button type="button" class="tab" id="tab-workout"><span class="i">🏋️</span>Тренировка</button>
-  <button type="button" class="tab" id="tab-food"><span class="i">🍽</span>Еда</button>
+  <button type="button" class="tab" id="tab-food" hidden><span class="i">🍽</span>Еда</button>
   <button type="button" class="tab" id="tab-weights"><span class="i">⚖️</span>Вес</button>
 </nav>
 <div id="app-version" class="app-version" hidden></div>

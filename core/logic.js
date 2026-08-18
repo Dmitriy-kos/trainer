@@ -1,6 +1,9 @@
 // Порт bot/logic.py. Паритет тестов: tests/test_logic.py.
 import { PROGRAMS, programByNumber } from "./plan.js";
 
+export const PULLUP_GOAL = 15;
+export const CONFIRMED_PULLUP_MAX = Object.freeze({ value: 11, date: "2026-08-17" });
+
 const WEEK_LABELS = {
   1: "Неделя 1 — усилие 6/10, втягивание, чуть меньше подходов",
   2: "Неделя 2 — усилие 7/10, полный объём, +вес/повтор",
@@ -26,33 +29,63 @@ export function pullupScheme(maxReps) {
     return "Тест: разминка 2-3 лёгких подхода по 2-3 (с резинкой, если хват не держит), отдых, затем 1 (один) подход строгих на максимум. Результат сохрани тапом по плитке максимума ниже.";
   if (maxReps <= 3)
     return "Негативы 4×3-5 (вверх с опоры, вниз за 3-5 сек) + с резинкой 3×6-8, отдых 2-3 мин. Запись: 0-4,4,3,3";
-  const w = Math.max(1, maxReps - 2);
+  // После 10 повторов формула «макс − 2» слишком резко раздувает объём:
+  // при максимуме 11 она дала бы пять отказно-близких подходов по 9.
+  // На продвинутом уровне держим рабочие подходы примерно в 2/3 максимума.
+  const w = maxReps >= 10
+    ? Math.min(8, Math.max(1, Math.floor(maxReps * 2 / 3)))
+    : Math.max(1, maxReps - 2);
   if (maxReps <= 6)
     return `5 подходов по ${w} (макс ${maxReps} − 2), БЕЗ отказа, отдых 2-3 мин. Запись: 0-${w},${w},${w},${w},${w}`;
-  return `5 подходов по ${w} (макс ${maxReps}, запас 1-2), отдых 2-3 мин. Все подходы легко — добавь вес или паузу вверху. Запись: 0-${w},${w},${w},${w},${Math.max(1, w - 1)}`;
+  return `5 подходов по ${w} (макс ${maxReps}, запас 2), отдых 2-3 мин. Все подходы легко — добавь 2,5 кг, а не повторы. Цель — ${PULLUP_GOAL} строгих. Запись: 0-${w},${w},${w},${w},${Math.max(1, w - 1)}`;
+}
+
+// Одноразовая подтверждённая миграция персональной базы: результат 11 от
+// 17.08.2026 не должен потеряться на устройстве, где в meta ещё лежит 7.
+// Более высокий или более новый результат пользователя всегда важнее миграции.
+export function withConfirmedPullupMax(stored) {
+  if (!stored || !Number.isInteger(stored.value)) return { ...CONFIRMED_PULLUP_MAX };
+  if (stored.value > CONFIRMED_PULLUP_MAX.value || stored.date > CONFIRMED_PULLUP_MAX.date) return stored;
+  if (stored.value === CONFIRMED_PULLUP_MAX.value && stored.date === CONFIRMED_PULLUP_MAX.date) return stored;
+  return { ...CONFIRMED_PULLUP_MAX };
 }
 
 // Схема подтягиваний дня. Программа 2 v3 (согласована 20.07.2026): A=Пн лесенки (объём),
 // B=Ср прямые подходы, C=Пт качество с паузой; промежуточного перетеста нет — единственный
 // тест максимума в Ср недели 8 (4-й недели программы), первым упражнением, до жима.
 // Пример «Запись: 0-…» — подсказка ФОРМАТА (вес 0 = свой вес), не предписание.
-export function pullupDayScheme(programNumber, week, day, maxReps) {
+export function pullupDayScheme(programNumber, week, day, maxReps, maxDate = null, sessionDate = null) {
   if (maxReps == null) return pullupScheme(null);
   if (programNumber !== 2) return pullupScheme(maxReps);
   const w = Math.max(1, Math.min(4, week));
-  const work = Math.max(1, maxReps - 2);
-  const easy = Math.max(1, maxReps - 3);
+  const advanced = maxReps >= 10;
+  const work = advanced
+    ? Math.min(8, Math.max(1, Math.floor(maxReps * 2 / 3)))
+    : Math.max(1, maxReps - 2);
+  const easy = advanced
+    ? Math.min(6, Math.max(1, Math.floor(maxReps / 2)))
+    : Math.max(1, maxReps - 3);
   const ladder = (rounds) =>
     `лесенка 2-3-4-5: сделай 2, отдых 40-60 с, затем 3, 4, 5 — это круг; кругов ${rounds}, между кругами 3 мин. Запись: 0-${Array(rounds).fill("2,3,4,5").join(",")}`;
-  const straight = `4×${work} (макс ${maxReps} − 2), отдых 2-3 мин`;
-  const quality = `3×${easy} (макс ${maxReps} − 3), пауза 2 с вверху, отдых 2-3 мин`;
+  const straight = advanced
+    ? `4×${work} (макс ${maxReps}, запас 2), отдых 2-3 мин`
+    : `4×${work} (макс ${maxReps} − 2), отдых 2-3 мин`;
+  const quality = advanced
+    ? `3×${easy} (макс ${maxReps}, запас 2), пауза 2 с вверху, отдых 2-3 мин`
+    : `3×${easy} (макс ${maxReps} − 3), пауза 2 с вверху, отдых 2-3 мин`;
+  const freshMax = maxDate && sessionDate &&
+    (parseDate(sessionDate) - parseDate(maxDate)) >= 0 &&
+    (parseDate(sessionDate) - parseDate(maxDate)) < 28 * DAY_MS;
+  const monthlyTest = freshMax
+    ? `Контроль уже выполнен ${maxDate}: ${maxReps} строгих. Сегодня без повторного теста; новая цель — ${PULLUP_GOAL}`
+    : `ЕЖЕМЕСЯЧНЫЙ ТЕСТ: 1 (один) подход на максимум строгих — первым, до жима (текущий макс ${maxReps}, цель ${PULLUP_GOAL})`;
   const table = {
     1: { A: ladder(2), B: straight, C: quality },
     2: { A: ladder(2), B: straight, C: quality },
     3: { A: ladder(2), B: straight, C: `${quality} — легко, впереди разгрузка` },
     4: {
       A: `2×${easy}, легко (разгрузка)`,
-      B: `ФИНАЛЬНЫЙ ТЕСТ: 1 (один) подход на максимум строгих — первым, до жима (текущий макс ${maxReps}, цель 10)`,
+      B: monthlyTest,
       C: "сегодня без подтягиваний (разгрузка)",
     },
   };

@@ -1,6 +1,6 @@
 // Данные исходно портированы из bot/plan.py; паритет разорван 08.07.2026 (порядок дня B), источник истины — PWA.
 // 13.07.2026 (Шаг 8): подтягивания подняты перед тягами на спину в днях 1/A, 1/C, 2/C —
-// подтягивания это цель (10 строгих), делаем их свежими; тяги — добивка. Румынская и
+// подтягивания это цель (15 строгих), делаем их свежими; тяги — добивка. Румынская и
 // становая тяги под правило не подпадают.
 
 const _WEEKDAY_TO_DAY = { 0: "A", 2: "B", 4: "C" };
@@ -31,7 +31,7 @@ const PROGRAM_1 = {
       { exercise: "Становая тяга", orderIdx: 1, scheme: "4×5", targetRpe: 7, note: "техника, умеренный вес" },
       { exercise: "Жим стоя (OHP)", orderIdx: 2, scheme: "3×8", targetRpe: 7, note: "корпус жёсткий, без прогиба" },
       { exercise: "Выпады с гантелями", orderIdx: 3, scheme: "3×10 / нога", targetRpe: 7, note: "колено не заваливается внутрь" },
-      { exercise: "Подтягивания (объёмный день)", orderIdx: 4, scheme: "по прогрессии", targetRpe: 8, note: "главный день для цели 10 раз — делаем свежим" },
+      { exercise: "Подтягивания (объёмный день)", orderIdx: 4, scheme: "по прогрессии", targetRpe: 8, note: "главный день для цели 15 раз — делаем свежим" },
       { exercise: "Тяга верхнего блока", orderIdx: 5, scheme: "3×12", targetRpe: 7, note: "добивка после подтягиваний" },
     ],
     C: [
@@ -65,7 +65,7 @@ const PROGRAM_2 = {
       { exercise: "Взятие на грудь (power clean)", orderIdx: 1, scheme: "5×3 (нед. 5: 4×3)", targetRpe: 7, note: "первым — техника и взрыв; вес растёт только при сохранении скорости" },
       { exercise: "Присед со штангой", orderIdx: 2, scheme: "5×5 (нед. 5: 4×5)", targetRpe: 8, note: "старт ≈ вес 4×8 месяца 1 + 5%; повышай только после чистого выполнения" },
       { exercise: "Румынская тяга (RDL)", orderIdx: 3, scheme: "3×8 (нед. 5: 2×8)", targetRpe: 7, note: "тяжелее месяца 1" },
-      { exercise: "Подтягивания (объёмный день)", orderIdx: 4, scheme: "по прогрессии", targetRpe: 8, note: "лесенка 2 круга — главный день цели 10" },
+      { exercise: "Подтягивания (объёмный день)", orderIdx: 4, scheme: "по прогрессии", targetRpe: 8, note: "лесенка 2 круга — главный день цели 15" },
       { exercise: "Пресс: подъёмы ног лёжа", orderIdx: 5, scheme: "3×12-15", targetRpe: 7, note: "поясница прижата к полу; без виса — хват в дне A уже нагружен clean, RDL и подтягиваниями (решение CEO 21.07.2026)" },
     ],
     B: [
@@ -98,6 +98,22 @@ const PROGRAM_2 = {
     ],
   },
 };
+
+// Ежемесячный силовой контроль разнесён по трём дням разгрузочной недели.
+// Для штанги фиксируем тяжёлый субмаксимальный подход, не истинный 1ПМ:
+// вес + повторы + усилие дают сопоставимый маркер силы без отказных попыток.
+const MONTHLY_CONTROL_PLANS = Object.freeze({
+  A: Object.freeze([
+    Object.freeze({ exercise: "Присед со штангой", orderIdx: 1, scheme: "разминка → 1×5", targetRpe: 9, note: "ежемесячный контроль: тяжело, но без отказа; без clean, RDL и подтягиваний" }),
+  ]),
+  B: Object.freeze([
+    Object.freeze({ exercise: "Подтягивания", orderIdx: 1, scheme: "по прогрессии", targetRpe: 10, note: "ежемесячный тест максимума — только если не было свежего теста за последние 28 дней" }),
+    Object.freeze({ exercise: "Жим лёжа", orderIdx: 2, scheme: "разминка → 1×5", targetRpe: 9, note: "ежемесячный контроль: тяжело, но без отказа; больше ничего тяжёлого" }),
+  ]),
+  C: Object.freeze([
+    Object.freeze({ exercise: "Становая тяга", orderIdx: 1, scheme: "разминка → 1×3", targetRpe: 9, note: "ежемесячный контроль: тяжело, но без отказа; в августе отложено из-за вылета" }),
+  ]),
+});
 
 export const PROGRAMS = [PROGRAM_1, PROGRAM_2];
 export const DAY_PLANS = PROGRAM_1.dayPlans; // обратная совместимость (тесты, демо)
@@ -148,6 +164,14 @@ export function globalWeekNumber(programNumber, week) {
 }
 
 export function planForSession(session) {
+  if (session.program === 2 && session.week === 4 && MONTHLY_CONTROL_PLANS[session.day]) {
+    // В августе тест подтягиваний досрочно выполнен 17.08 (11 раз),
+    // поэтому контроль B перед вылетом содержит только жим.
+    if (session.day === "B" && session.date >= "2026-08-24" && session.date <= "2026-08-30") {
+      return MONTHLY_CONTROL_PLANS.B.filter((item) => item.exercise === "Жим лёжа");
+    }
+    return MONTHLY_CONTROL_PLANS[session.day];
+  }
   const plan = programByNumber(session.program ?? 1).dayPlans[session.day] ?? null;
   // До решения 02.08.2026 шестым упражнением дня B был hollow hold. Старые
   // сессии должны продолжать показывать именно тот план, который выполнялся,

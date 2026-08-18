@@ -268,7 +268,10 @@ body.focus-viewer .habit-row { pointer-events: none; cursor: default; }
   color: #0B0B0F;
   background: #F7F9FC;
   font: inherit;
-  font-size: 14px;
+  /* iOS Safari автоматически масштабирует viewport при фокусе на поле
+     со шрифтом меньше 16px. После закрытия шторки этот масштаб мог
+     оставаться на следующем упражнении. */
+  font-size: 16px;
   line-height: 1.35;
 }
 .effort-comment-input:focus { border-color: #0A84FF; background: #fff; }

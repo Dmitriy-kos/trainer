@@ -2,7 +2,7 @@
 // screens.js отвечает за DOM; этот модуль решает, ЧТО показать и КОГДА писать в БД.
 
 import * as store from "../core/store.js";
-import { autoregulationHint, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, restAlertSecond, formatRest, withActualEffort, restPresetDurations, backupReminder } from "../core/logic.js";
+import { autoregulationHint, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, restAlertSecond, formatRest, withActualEffort, restPresetDurations, backupReminder, withConfirmedPullupMax } from "../core/logic.js";
 import { parseSetInput, formatLastSets, formatWorkoutDate, schemeTargetReps, latestCacheVersion, humanScheme } from "../core/format.js";
 import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, DAY_PLANS, globalWeekNumber } from "../core/plan.js";
 import { lastSets, lastExerciseComment, withExerciseComment, sessionSummary, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
@@ -748,7 +748,14 @@ function buildSessionVm() {
   let pullupMaxLabel = null;
   if (isPullup) {
     const maxVal = state.pullupMax ? state.pullupMax.value : null;
-    schemeLine = humanScheme(pullupDayScheme(state.session.program ?? 1, state.session.week, state.session.day, maxVal), gWeek);
+    schemeLine = humanScheme(pullupDayScheme(
+      state.session.program ?? 1,
+      state.session.week,
+      state.session.day,
+      maxVal,
+      state.pullupMax?.date ?? null,
+      state.session.date,
+    ), gWeek);
     pullupMaxLabel = pullupMaxTileLabel();
   }
 
@@ -1752,7 +1759,11 @@ async function init() {
   if (JSON.stringify(storedScheduleAdjustments) !== JSON.stringify(state.scheduleAdjustments)) {
     await store.setMeta("scheduleAdjustments", state.scheduleAdjustments);
   }
-  state.pullupMax = (await store.getMeta("pullupMax")) ?? null;
+  const storedPullupMax = (await store.getMeta("pullupMax")) ?? null;
+  state.pullupMax = withConfirmedPullupMax(storedPullupMax);
+  if (JSON.stringify(storedPullupMax) !== JSON.stringify(state.pullupMax)) {
+    await store.setMeta("pullupMax", state.pullupMax);
+  }
   state.lastBackupDate = (await store.getMeta("lastBackupDate")) ?? null;
   state.habitsByDate = normalizeHabitsByDate((await store.getMeta("habitsByDate")) ?? {});
   state.focusSyncToken = (await store.getMeta("focusSyncToken")) ?? null;

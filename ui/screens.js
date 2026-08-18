@@ -483,6 +483,11 @@ export function initSessionEffortGrid() {
 export function showSessionEffort(vm) {
   const overlay = $("session-effort");
   if (!vm) {
+    // Снимаем фокус до скрытия textarea: iOS Safari иначе иногда
+    // сохраняет увеличенный visual viewport на следующем упражнении.
+    if (document.activeElement instanceof HTMLElement && overlay.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
     overlay.hidden = true;
     return;
   }

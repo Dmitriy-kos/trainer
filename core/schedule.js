@@ -7,6 +7,12 @@ export const CONFIRMED_SCHEDULE_ADJUSTMENTS = Object.freeze([
     days: 7,
     reason: "Повтор недели 6 после пропусков; подтверждено 01.08.2026",
   }),
+  Object.freeze({
+    id: "repeat-week7-2026-08-17",
+    effectiveFrom: "2026-08-17",
+    days: 7,
+    reason: "Повтор недели 7 после пропуска пика; подтверждено 16.08.2026",
+  }),
 ]);
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -46,8 +52,9 @@ function addDays(date, days) {
   return parsed.toISOString().slice(0, 10);
 }
 
-// Сдвиг начинает действовать только с effectiveFrom. Поэтому 01.08 остаётся
-// неделей 6, 03.08 снова становится неделей 6, а история до вставки неизменна.
+// Сдвиг начинает действовать только с effectiveFrom. Поэтому 03.08 снова
+// становится неделей 6, 17.08 — неделей 7, а история до каждой вставки
+// остаётся неизменной.
 export function programStartForDate(baseStart, date, adjustments) {
   const totalDays = normalizeScheduleAdjustments(adjustments)
     .filter((item) => item.effectiveFrom <= date)
