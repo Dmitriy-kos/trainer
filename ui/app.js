@@ -4,7 +4,8 @@
 import * as store from "../core/store.js";
 import { autoregulationHint, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, restAlertSecond, formatRest, withActualEffort, restPresetDurations, backupReminder, withConfirmedPullupMax } from "../core/logic.js";
 import { parseSetInput, formatLastSets, formatWorkoutDate, schemeTargetReps, latestCacheVersion, humanScheme } from "../core/format.js";
-import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, DAY_PLANS, globalWeekNumber } from "../core/plan.js";
+import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, programDayTitle, techniqueImage, DAY_PLANS, globalWeekNumber } from "../core/plan.js";
+import { techniqueGuide } from "../core/technique.js";
 import { lastSets, lastExerciseComment, withExerciseComment, sessionSummary, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
 import { latestWeigh, weighDeltas, sortedByDateDesc, daysSince, METRICS, BODYCOMP_METRICS, metricHistory, metricDelta, deltaTone, parseWeighDraft } from "../core/weigh.js";
@@ -155,7 +156,7 @@ function renderTodayScreen() {
   const br = backupReminder(state.lastBackupDate, today, state.sessions.length > 0);
   const backupLabel = br ? (br.days == null ? "⚠️ Сделай резервную копию истории" : `⚠️ Копию не делал ${br.days} дн.`) : null;
 
-  const dayLabel = todayDay ? `Силовая ${todayDay}` : "Бег/отдых";
+  const dayLabel = programWeekdayHint(program, weekday);
   const pullupN = state.pullupMax ? state.pullupMax.value : "—";
   const workoutSub = `Сегодня: ${dayLabel} · максимум подтягиваний — ${pullupN}`;
   const { weightsSub, weightsAccent } = weightsHubVm(today, weekday);
@@ -327,7 +328,12 @@ function renderWorkoutScreen() {
 
   screens.renderWorkout({
     hint,
+    programTitle: program.title,
     weekLabel: program.weekLabels[week],
+    dayLabels: Object.fromEntries(["A", "B", "C"].map((day) => {
+      const title = programDayTitle(program, day);
+      return [day, program.dayTitles?.[day] ? `${day} · ${title}` : title];
+    })),
     todayDay,
     resumeLabel,
     measureLabel,
@@ -744,6 +750,7 @@ function buildSessionVm() {
   // Схему показываем словами («5 подходов по 3 повторения»), а вариант «нед. 5»
   // раскрываем по текущей неделе — на карточке нет скобок и шифровок (CEO 21.07.2026).
   const gWeek = globalWeekNumber(state.session.program ?? 1, state.session.week);
+  const program = programByNumber(state.session.program ?? 1);
   let schemeLine = humanScheme(item.scheme, gWeek);
   let pullupMaxLabel = null;
   if (isPullup) {
@@ -763,8 +770,14 @@ function buildSessionVm() {
     stepLabel: `Осталось ${remaining} из ${state.exercises.length}`,
     pillLabel: `${dayTypeLabel(state.session.day)} · Неделя ${state.session.week}`,
     strip: state.exercises.map((it, i) => ({ status: statuses[i], here: i === idx, label: stripLabel(it.exercise) })),
+    techniqueImg: techniqueImage(item.exercise),
+    techniqueGuide: techniqueGuide(item.exercise),
     exercise: item.exercise,
     schemeLine,
+    dayBrief: program.dayBriefs?.[state.session.day] ?? null,
+    inputPlaceholder: (state.session.program ?? 1) === 3
+      ? "напр. 0-8,8,8 — вес тела записывай как 0"
+      : "напр. 50-5,5,5 или 50-5 52-5",
     pullupMaxLabel,
     note: item.note || "",
     lastSetsText: formatLastSets(last),
@@ -1511,7 +1524,11 @@ function renderDemoSession() {
     stepLabel: "Осталось 4 из 5",
     pillLabel: "Силовая B · Неделя 6",
     exercise: item.exercise,
+    techniqueImg: techniqueImage(item.exercise),
+    techniqueGuide: techniqueGuide(item.exercise),
     schemeLine: humanScheme(item.scheme, 2),
+    dayBrief: null,
+    inputPlaceholder: "напр. 50-5,5,5 или 50-5 52-5",
     note: item.note,
     lastSetsText: formatLastSets(demoLast),
     lastSetLabels: demoLast.map((set) => formatLastSets([set])),
@@ -1619,6 +1636,11 @@ async function guarded(fn) {
 }
 
 function bindEvents() {
+  screens.on("session-technique-open", "click", () => screens.showSessionTechnique(true));
+  screens.on("session-technique-close", "click", () => screens.showSessionTechnique(false));
+  screens.on("session-technique", "click", (event) => {
+    if (event.target.id === "session-technique") screens.showSessionTechnique(false);
+  });
   screens.on("btn-day-a", "click", () => guarded(() => onStartStrength("A")));
   screens.on("btn-day-b", "click", () => guarded(() => onStartStrength("B")));
   screens.on("btn-day-c", "click", () => guarded(() => onStartStrength("C")));
@@ -1666,7 +1688,7 @@ function bindEvents() {
 
   // Таймер отдыха ничего не пишет в БД — без guarded (иначе тап блокировался
   // бы, пока идёт запись подхода).
-  for (const id of ["btn-rest-a", "btn-rest-b"]) {
+  for (const id of ["btn-rest-a", "btn-rest-b", "btn-rest-c"]) {
     screens.on(id, "click", (event) => startTimer(Number(event.currentTarget.dataset.duration)));
   }
   screens.on("session-timer", "click", () => startTimer(state.timer.durationSec));

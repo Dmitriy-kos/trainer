@@ -111,7 +111,7 @@
   <!-- Экран: Тренировка -->
   <section id="screen-workout" hidden>
     <div class="card big">
-      <div class="workout-eyebrow">ПЛАН НА СЕГОДНЯ</div>
+      <div class="workout-eyebrow" id="workout-program">ПЛАН НА СЕГОДНЯ</div>
       <h1 id="workout-title"></h1>
       <div class="workout-guidance-label">КАК ТРЕНИРОВАТЬСЯ НА ЭТОЙ НЕДЕЛЕ</div>
       <div class="s" id="workout-week"></div>
@@ -166,6 +166,28 @@
 
     <div class="card flash" id="session-flash" hidden></div>
 
+    <div class="technique-overlay" id="session-technique" hidden>
+      <div class="technique-sheet" id="session-technique-sheet" role="dialog" aria-modal="true" aria-labelledby="session-technique-title" tabindex="-1">
+        <div class="technique-sheet-head">
+          <strong id="session-technique-title">Техника упражнения</strong>
+          <button type="button" class="technique-close" id="session-technique-close" aria-label="Закрыть технику">Готово</button>
+        </div>
+        <img id="session-technique-img" alt="" hidden>
+        <div class="technique-copy" id="session-technique-copy" hidden>
+          <div class="technique-label">Как выполнять</div>
+          <ol class="technique-steps" id="session-technique-steps"></ol>
+          <div class="technique-callout">
+            <div class="technique-label">Главное</div>
+            <p id="session-technique-focus"></p>
+          </div>
+          <div class="technique-label">Частые ошибки</div>
+          <ul class="technique-mistakes" id="session-technique-mistakes"></ul>
+          <div class="technique-safety" id="session-technique-safety" hidden></div>
+          <a class="technique-link" id="session-technique-link" href="#" target="_blank" rel="noopener noreferrer" hidden>Видео техники ↗</a>
+        </div>
+      </div>
+    </div>
+
     <div class="effort-overlay" id="session-effort" hidden>
       <div class="effort-sheet" id="session-effort-sheet" role="dialog" aria-modal="true" aria-labelledby="session-effort-title" tabindex="-1">
         <div class="session-eyebrow">Упражнение записано</div>
@@ -187,8 +209,10 @@
           <div class="session-eyebrow">Текущее упражнение</div>
           <h1 id="session-exercise"></h1>
         </div>
+        <button type="button" class="technique-open" id="session-technique-open" hidden>Техника</button>
       </div>
       <div class="session-scheme-chips" id="session-scheme"></div>
+      <div class="session-format" id="session-format" hidden></div>
       <div class="note" id="session-note" hidden></div>
 
       <div class="session-previous" id="session-last">
@@ -221,9 +245,10 @@
       <div class="l" id="session-timer-label">Отдых · нажми запустить</div>
       <div class="timer-digits" id="session-timer-value">2:00</div>
     </button>
-    <div class="grid grid2 rest-presets">
+    <div class="grid grid3 rest-presets">
       <button type="button" class="btn" id="btn-rest-a" data-duration="60" aria-label="Запустить таймер отдыха на 1:00">1:00</button>
       <button type="button" class="btn" id="btn-rest-b" data-duration="90" aria-label="Запустить таймер отдыха на 1:30">1:30</button>
+      <button type="button" class="btn" id="btn-rest-c" data-duration="240" aria-label="Запустить таймер отдыха на 4:00">4:00</button>
     </div>
 
     <!-- Кнопка «Больно 🚑» убрана по решению CEO 10.07.2026 (не актуальна).

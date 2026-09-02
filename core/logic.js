@@ -186,11 +186,11 @@ export function withActualEffort(rows, actualRpe, targetRpe) {
   }));
 }
 
-const REST_DURATIONS = [60, 90, 120];
+const REST_DURATIONS = [60, 90, 120, 240];
 
-// Крупная плитка уже показывает выбранный интервал, поэтому в двух быстрых
-// кнопках оставляем остальные варианты. Так ни одна длительность не исчезает:
-// после выбора 1:30 кнопка 2:00 занимает её прежнее место в нижнем ряду.
+// Крупная плитка уже показывает выбранный интервал, поэтому в трёх быстрых
+// кнопках оставляем остальные варианты. Четыре минуты нужны для интервальных
+// кругов Bali Engine; в обычных силовых днях этот пресет просто остаётся запасным.
 export function restPresetDurations(selectedDurationSec) {
   return REST_DURATIONS.filter((durationSec) => durationSec !== selectedDurationSec);
 }

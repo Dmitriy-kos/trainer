@@ -21,6 +21,7 @@ export function showScreen(name) {
   document.body.classList.toggle("no-tabbar", !isTabScreen);
   document.body.classList.toggle("session-mode", name === "session");
   if (name !== "session") {
+    $("session-technique").hidden = true;
     $("session-effort").hidden = true;
   }
 }
@@ -163,7 +164,8 @@ export function showTodayError(msg) {
 
 // ---------- Тренировка ----------
 
-export function renderWorkout({ hint, weekLabel, todayDay, resumeLabel, measureLabel, boostLabel, pullupLabel }) {
+export function renderWorkout({ hint, programTitle, weekLabel, dayLabels, todayDay, resumeLabel, measureLabel, boostLabel, pullupLabel }) {
+  $("workout-program").textContent = programTitle ?? "План на сегодня";
   $("workout-title").textContent = hint;
   $("workout-week").textContent = weekLabel;
   $("workout-pullup-value").textContent = pullupLabel ?? "";
@@ -186,7 +188,9 @@ export function renderWorkout({ hint, weekLabel, todayDay, resumeLabel, measureL
   boost.textContent = boostLabel ?? "";
 
   for (const day of ["A", "B", "C"]) {
-    $(`btn-day-${day.toLowerCase()}`).classList.toggle("btn-accent", todayDay === day);
+    const button = $(`btn-day-${day.toLowerCase()}`);
+    button.textContent = dayLabels?.[day] ?? `Силовая ${day}`;
+    button.classList.toggle("btn-accent", todayDay === day);
   }
   $("btn-run").classList.toggle("btn-accent", todayDay === null);
 }
@@ -374,6 +378,7 @@ export function renderSession(vm, onStripTap) {
   $("session-pill").textContent = vm.pillLabel;
 
   $("session-exercise").textContent = vm.exercise;
+  renderSessionTechnique(vm);
   const schemeWrap = $("session-scheme");
   schemeWrap.textContent = "";
   const schemeParts = vm.schemeParts ?? (vm.schemeLine || "").split(" · ").filter(Boolean);
@@ -382,6 +387,15 @@ export function renderSession(vm, onStripTap) {
     chip.className = "session-scheme-chip";
     chip.textContent = text;
     schemeWrap.appendChild(chip);
+  }
+
+  const formatEl = $("session-format");
+  if (vm.dayBrief) {
+    formatEl.textContent = vm.dayBrief;
+    formatEl.hidden = false;
+  } else {
+    formatEl.textContent = "";
+    formatEl.hidden = true;
   }
 
   const noteEl = $("session-note");
@@ -432,6 +446,7 @@ export function renderSession(vm, onStripTap) {
   if (vm.pullupMaxLabel != null) $("session-pullup-max-value").textContent = vm.pullupMaxLabel;
 
   $("session-input").value = "";
+  $("session-input").placeholder = vm.inputPlaceholder ?? "напр. 50-5,5,5 или 50-5 52-5";
   showSessionError("");
 
   $("session-same").disabled = vm.sameDisabled;
@@ -453,6 +468,64 @@ export function renderSession(vm, onStripTap) {
   $("session-actions").hidden = false;
 
   renderFlash($("session-flash"), vm.flash);
+}
+
+function fillList(list, items) {
+  list.textContent = "";
+  for (const text of items ?? []) {
+    const row = document.createElement("li");
+    row.textContent = text;
+    list.appendChild(row);
+  }
+}
+
+function renderSessionTechnique(vm) {
+  const img = $("session-technique-img");
+  if (vm.techniqueImg) {
+    img.src = vm.techniqueImg;
+    img.alt = `Техника: ${vm.exercise}`;
+    img.hidden = false;
+  } else {
+    img.removeAttribute("src");
+    img.alt = "";
+    img.hidden = true;
+  }
+
+  const guide = vm.techniqueGuide;
+  const copy = $("session-technique-copy");
+  copy.hidden = !guide;
+  if (guide) {
+    fillList($("session-technique-steps"), guide.steps);
+    $("session-technique-focus").textContent = guide.focus ?? "";
+    fillList($("session-technique-mistakes"), guide.mistakes);
+
+    const safety = $("session-technique-safety");
+    safety.hidden = !guide.safety;
+    safety.textContent = guide.safety ? `Безопасность: ${guide.safety}` : "";
+
+    const link = $("session-technique-link");
+    link.hidden = !guide.link;
+    if (guide.link) {
+      link.href = guide.link.url;
+      link.textContent = `${guide.link.label} ↗`;
+    } else {
+      link.removeAttribute("href");
+      link.textContent = "";
+    }
+  }
+
+  $("session-technique-title").textContent = `Техника: ${vm.exercise}`;
+  $("session-technique-open").hidden = !vm.techniqueImg && !guide;
+  $("session-technique").hidden = true;
+}
+
+export function showSessionTechnique(open) {
+  const overlay = $("session-technique");
+  const trigger = $("session-technique-open");
+  if (open && trigger.hidden) return;
+  overlay.hidden = !open;
+  if (open) $("session-technique-sheet").focus();
+  else trigger.focus();
 }
 
 let sessionEffortSelection = null;
@@ -545,7 +618,7 @@ export function renderTimer(state) {
   $("session-timer-value").textContent = state.text;
   tile.setAttribute("aria-label", state.ariaLabel);
 
-  const presetButtons = [$("btn-rest-a"), $("btn-rest-b")];
+  const presetButtons = [$("btn-rest-a"), $("btn-rest-b"), $("btn-rest-c")];
   for (const [index, durationSec] of (state.presetDurations ?? []).entries()) {
     const button = presetButtons[index];
     if (!button) break;
