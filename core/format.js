@@ -96,7 +96,8 @@ function verboseSetsReps(text) {
       return `${sets} ${setsWord} по ${reps} ${repsWord}`;
     })
     .replace(/\s*\/\s*рука/g, " на каждую руку")
-    .replace(/\s*\/\s*нога/g, " на каждую ногу");
+    .replace(/\s*\/\s*нога/g, " на каждую ногу")
+    .replace(/\s*\/\s*сторона/g, " на каждую сторону");
 }
 
 export function humanScheme(scheme, globalWeek) {

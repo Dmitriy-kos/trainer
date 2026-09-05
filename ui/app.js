@@ -149,7 +149,7 @@ function renderTodayScreen() {
     // Шаг 8: порядок свободный — считаем незакрытые по данным, а не по progressIdx
     // (он теперь курсор «где я», а не счётчик «сколько сделано»).
     const remaining = plan ? sessionRemaining(state.sets, unfinished.id, plan) : 0;
-    const label = dayTypeLabel(unfinished.day);
+    const label = dayTypeLabel(unfinished.day, unfinished.program);
     resumeLabel = `Продолжить: ${label} от ${unfinished.date} (осталось ${remaining} из ${total})`;
   }
 
@@ -313,7 +313,7 @@ function renderWorkoutScreen() {
     // Шаг 8: порядок свободный — считаем незакрытые по данным, а не по progressIdx
     // (он теперь курсор «где я», а не счётчик «сколько сделано»).
     const remaining = plan ? sessionRemaining(state.sets, unfinished.id, plan) : 0;
-    const label = dayTypeLabel(unfinished.day);
+    const label = dayTypeLabel(unfinished.day, unfinished.program);
     resumeLabel = `Продолжить: ${label} от ${unfinished.date} (осталось ${remaining} из ${total})`;
   }
 
@@ -334,6 +334,7 @@ function renderWorkoutScreen() {
       const title = programDayTitle(program, day);
       return [day, program.dayTitles?.[day] ? `${day} · ${title}` : title];
     })),
+    cardioLabel: program.cardio?.buttonLabel,
     todayDay,
     resumeLabel,
     measureLabel,
@@ -574,8 +575,8 @@ function goHistory() {
 // ---------- Силовая сессия ----------
 
 // Человеческое имя типа сессии по букве дня (P1/P2 — подкачки после бега).
-function dayTypeLabel(day) {
-  if (day === "RUN") return "Бег";
+function dayTypeLabel(day, programNumber = null) {
+  if (day === "RUN") return programNumber === 3 ? "Кардио" : "Бег";
   if (day === "T") return "Замеры";
   if (day === "P1" || day === "P2") return "Подкачка";
   return `Силовая ${day}`;
@@ -768,7 +769,7 @@ function buildSessionVm() {
 
   return {
     stepLabel: `Осталось ${remaining} из ${state.exercises.length}`,
-    pillLabel: `${dayTypeLabel(state.session.day)} · Неделя ${state.session.week}`,
+    pillLabel: `${dayTypeLabel(state.session.day, state.session.program)} · Неделя ${state.session.week}`,
     strip: state.exercises.map((it, i) => ({ status: statuses[i], here: i === idx, label: stripLabel(it.exercise) })),
     techniqueImg: techniqueImage(item.exercise),
     techniqueGuide: techniqueGuide(item.exercise),
@@ -961,7 +962,7 @@ async function onSkip() {
 function buildDoneVm(session) {
   const result = sessionSummary(session, state.sets, planForSession(session));
   return {
-    eyebrow: `${dayTypeLabel(session.day)} · Неделя ${session.week}`,
+    eyebrow: `${dayTypeLabel(session.day, session.program)} · Неделя ${session.week}`,
     summary: `${result.completedCount} из ${result.totalExercises} упражнений · ${result.totalSets} ${pluralRu(result.totalSets, "подход", "подхода", "подходов")}`,
     items: result.items,
   };
@@ -996,13 +997,18 @@ function onDoneEdit() {
 async function onStartRun() {
   const today = todayStr();
   const { number, week } = programForDate(activeProgramStart(today), today);
+  const cardio = programByNumber(number).cardio;
   const run = { date: today, day: "RUN", week, status: "done", wellbeing: null, note: null, progressIdx: 0, program: number };
   const id = await store.addSession(run);
   const withId = { ...run, id };
   state.sessions.push(withId);
   state.runSession = withId;
   screens.showScreen("run");
-  screens.renderRun();
+  screens.renderRun({
+    title: cardio?.title,
+    guidance: cardio?.weekGuidance?.[week],
+    placeholder: cardio?.placeholder,
+  });
 }
 
 async function onRunDone() {
@@ -1234,7 +1240,7 @@ async function onFoodRetryPending() {
 // ---------- История ----------
 
 function buildHistoryItemVm(session) {
-  const typeLabel = dayTypeLabel(session.day);
+  const typeLabel = dayTypeLabel(session.day, session.program);
   let subLabel = `Неделя ${session.week}`;
   if (session.wellbeing != null) subLabel += ` · самочувствие ${session.wellbeing}/10`;
   if (session.status === "open") subLabel += " · не завершена";

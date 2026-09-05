@@ -164,7 +164,7 @@ export function showTodayError(msg) {
 
 // ---------- Тренировка ----------
 
-export function renderWorkout({ hint, programTitle, weekLabel, dayLabels, todayDay, resumeLabel, measureLabel, boostLabel, pullupLabel }) {
+export function renderWorkout({ hint, programTitle, weekLabel, dayLabels, cardioLabel, todayDay, resumeLabel, measureLabel, boostLabel, pullupLabel }) {
   $("workout-program").textContent = programTitle ?? "План на сегодня";
   $("workout-title").textContent = hint;
   $("workout-week").textContent = weekLabel;
@@ -192,6 +192,7 @@ export function renderWorkout({ hint, programTitle, weekLabel, dayLabels, todayD
     button.textContent = dayLabels?.[day] ?? `Силовая ${day}`;
     button.classList.toggle("btn-accent", todayDay === day);
   }
+  $("btn-run").textContent = cardioLabel ?? "Бег 🏃";
   $("btn-run").classList.toggle("btn-accent", todayDay === null);
 }
 
@@ -684,7 +685,11 @@ export function renderDone(vm) {
 
 // ---------- Бег ----------
 
-export function renderRun() {
+export function renderRun({ title, guidance, placeholder } = {}) {
+  $("run-title").textContent = title ?? "Пробежка записана 🏃";
+  $("run-guidance").textContent = guidance ?? "";
+  $("run-guidance").hidden = !guidance;
+  $("run-input").placeholder = placeholder ?? "напр. 5 км, 30 мин";
   $("run-input").value = "";
 }
 
