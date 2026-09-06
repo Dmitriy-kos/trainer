@@ -191,7 +191,79 @@ const PROGRAM_3 = {
       { exercise: "Выпады назад", orderIdx: 5, scheme: "5×12 всего (нед. 9: 4×10 всего)", targetRpe: 8, note: "без резинки, чередуй ноги; остаток 4-минутного окна — отдых" },
     ],
   },
+  // Зал — параллельный вариант тех же дней A/B/C. Его можно чередовать
+  // с домашним: каждый день остаётся тренировкой на всё тело, а буква дня
+  // сохраняет последовательность. Первые три фактически завершённые сессии в зале
+  // после двухнедельной паузы получают отдельный сниженный план в planForSession().
+  gym: {
+    title: "Фитнес-клуб — возврат к силовой",
+    cardio: {
+      buttonLabel: "Кардио в зале 🏃",
+      title: "Кардио в зале записано 🏃",
+      placeholder: "напр. дорожка 25 мин, лёгко",
+      weekGuidance: {
+        1: "20–30 минут на дорожке, велотренажёре или эллипсе в разговорном темпе. Без интервалов и догоняния прежнего темпа.",
+        2: "30–40 минут ровного кардио в разговорном темпе. Тренажёр можно выбрать по самочувствию.",
+        3: "35–45 минут лёгкого кардио. Добавь наклон или сопротивление, а не спринты.",
+        4: "Разгрузка: 25–35 минут очень лёгкого кардио без интервалов.",
+      },
+    },
+    dayTitles: {
+      A: "Присед + жим",
+      B: "Односторонняя сила",
+      C: "Тяга + верх",
+    },
+    dayBriefs: {
+      A: "Не догоняй старые веса. Для приседа и жима начни с 50–55 кг, для RDL — с 45–50 кг. Оставляй 3–4 чистых повтора в запасе.",
+      B: "Для OHP начни с 25–27,5 кг. В гантелях подбирай вес по технике и запасу 3–4 повтора. Ни одного подхода до отказа.",
+      C: "Для становой начни с 60–65 кг, для фронтального приседа — с 45–50 кг. Становую останови при потере позиции или скорости.",
+    },
+    weekLabels: {
+      1: "Первые 3 тренировки в зале после 2 недель паузы: по 2 рабочих подхода, усилие не выше 7/10, без отказа.",
+      2: "Возврат завершён: по 3 рабочих подхода в основных упражнениях, усилие 7–8/10. Вес растёт только после чистого выполнения.",
+      3: "Полный объём. Добавляй либо вес, либо повторы — только одно измерение за раз. Оставляй 2 повтора в запасе.",
+      4: "Разгрузка: убери один рабочий подход в основных упражнениях и держи усилие не выше 8/10. Без контрольных максимумов.",
+    },
+    dayPlans: {
+      A: [
+        { exercise: "Присед со штангой", orderIdx: 1, scheme: "3×5", targetRpe: 8, note: "старт 50–55 кг; глубина в комфорте, спина нейтральна" },
+        { exercise: "Жим лёжа", orderIdx: 2, scheme: "3×5", targetRpe: 8, note: "старт 50–55 кг; лопатки сведены, без отказа" },
+        { exercise: "Подтягивания", orderIdx: 3, scheme: "3×5", targetRpe: 7, note: "оставь 3 чистых повтора; не тест максимума" },
+        { exercise: "Румынская тяга (RDL)", orderIdx: 4, scheme: "3×8", targetRpe: 8, note: "старт 45–50 кг; таз назад, штанга близко к ногам" },
+        { exercise: "Бицепс с гантелями", orderIdx: 5, scheme: "2×12", targetRpe: 7, note: "легко, без раскачки корпуса" },
+        { exercise: "Боковая планка", orderIdx: 6, scheme: "2×30-45 с / сторона", targetRpe: 7, note: "локоть под плечом, таз не провисает" },
+      ],
+      B: [
+        { exercise: "Выпады с гантелями", orderIdx: 1, scheme: "3×8 / нога", targetRpe: 8, note: "начни с веса, при котором остаётся 3 чистых повтора" },
+        { exercise: "Жим стоя (OHP)", orderIdx: 2, scheme: "3×6", targetRpe: 8, note: "старт 25–27,5 кг; строго, без подседа" },
+        { exercise: "Подтягивания", orderIdx: 3, scheme: "3×5", targetRpe: 7, note: "каждый повтор из мёртвого виса; оставь запас" },
+        { exercise: "Тяга гантели одной рукой с опорой на лавку", orderIdx: 4, scheme: "3×8 / рука", targetRpe: 8, note: "поясница выключена; локоть к тазу" },
+        { exercise: "Трицепс: разгибания из-за головы", orderIdx: 5, scheme: "2×12", targetRpe: 7, note: "локти смотрят вперёд" },
+        { exercise: "Dead bug", orderIdx: 6, scheme: "2×10 / сторона", targetRpe: 7, note: "поясница всё время прижата к полу" },
+      ],
+      C: [
+        { exercise: "Становая тяга", orderIdx: 1, scheme: "3×4", targetRpe: 8, note: "старт 60–65 кг; каждый повтор с пола, без гонки за весом" },
+        { exercise: "Фронтальный присед", orderIdx: 2, scheme: "3×5", targetRpe: 8, note: "старт 45–50 кг; умеренно, локти высоко" },
+        { exercise: "Жим гантелей на наклонной", orderIdx: 3, scheme: "3×10", targetRpe: 8, note: "вес по чистой технике, без отказа" },
+        { exercise: "Подтягивания", orderIdx: 4, scheme: "3×5", targetRpe: 7, note: "пауза 1 с вверху, оставь 3 чистых повтора" },
+        { exercise: "Тяга штанги в наклоне", orderIdx: 5, scheme: "3×8", targetRpe: 8, note: "добивка после подтягиваний; без рывка корпусом" },
+        { exercise: "Пресс: русские повороты", orderIdx: 6, scheme: "2×20", targetRpe: 7, note: "поворачивай грудную клетку, не только руки" },
+      ],
+    },
+  },
 };
+
+function reducedGymPlans(dayPlans) {
+  return Object.fromEntries(Object.entries(dayPlans).map(([day, items]) => [day, items.map((item) => ({
+    ...item,
+    scheme: item.scheme.replace(/^[34]×/, "2×"),
+    targetRpe: Math.min(item.targetRpe, 7),
+  }))]));
+}
+
+PROGRAM_3.gym.returnDayPlans = reducedGymPlans(PROGRAM_3.gym.dayPlans);
+
+export const GYM_RETURN_SESSION_COUNT = 3;
 
 // Ежемесячный силовой контроль разнесён по трём дням разгрузочной недели.
 // Для штанги фиксируем тяжёлый субмаксимальный подход, не истинный 1ПМ:
@@ -246,6 +318,17 @@ export function programByNumber(n) {
   return PROGRAMS.find((p) => p.number === n) ?? PROGRAMS[0];
 }
 
+export function programVariant(program, venue = "home") {
+  return venue === "gym" && program.gym ? program.gym : program;
+}
+
+export function gymReturnRemaining(sessions) {
+  const completed = sessions.filter((session) =>
+    session.program === 3 && session.venue === "gym" && session.status === "done" &&
+    ["A", "B", "C"].includes(session.day)).length;
+  return Math.max(0, GYM_RETURN_SESSION_COUNT - completed);
+}
+
 // Сквозной номер недели: неделя 1 программы 2 = неделя 5 (после 4 недель программы 1).
 // Нужен humanScheme() — пометки «нед. 5» в схемах используют сквозную нумерацию.
 export function globalWeekNumber(programNumber, week) {
@@ -266,7 +349,10 @@ export function planForSession(session) {
     }
     return MONTHLY_CONTROL_PLANS[session.day];
   }
-  const plan = programByNumber(session.program ?? 1).dayPlans[session.day] ?? null;
+  const program = programByNumber(session.program ?? 1);
+  const plan = session.program === 3 && session.venue === "gym"
+    ? (session.gymReturn ? program.gym.returnDayPlans : program.gym.dayPlans)[session.day] ?? null
+    : program.dayPlans[session.day] ?? null;
   // До решения 02.08.2026 шестым упражнением дня B был hollow hold. Старые
   // сессии должны продолжать показывать именно тот план, который выполнялся,
   // иначе История дорисует им ложную «пропущенную планку».
@@ -287,15 +373,16 @@ export function programDayForWeekday(program, weekday) {
   return program.weekdayToDay[weekday] ?? null;
 }
 
-export function programWeekdayHint(program, weekday) {
+export function programWeekdayHint(program, weekday, venue = "home") {
   const day = programDayForWeekday(program, weekday);
   if (day === null) return program.cardio ? "Кардио или отдых" : "Бег или отдых";
-  if (program.dayTitles?.[day]) return `${day} · ${program.dayTitles[day]}`;
+  const variant = programVariant(program, venue);
+  if (variant.dayTitles?.[day]) return `${day} · ${variant.dayTitles[day]}`;
   return `Силовая ${day}`;
 }
 
-export function programDayTitle(program, day) {
-  return program.dayTitles?.[day] ?? `Силовая ${day}`;
+export function programDayTitle(program, day, venue = "home") {
+  return programVariant(program, venue).dayTitles?.[day] ?? `Силовая ${day}`;
 }
 
 export function dayForWeekday(weekday) {

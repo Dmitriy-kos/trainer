@@ -110,6 +110,15 @@
 
   <!-- Экран: Тренировка -->
   <section id="screen-workout" hidden>
+    <div class="workout-venue card" id="workout-venue" hidden>
+      <div class="workout-venue-label">Где тренируешься сегодня?</div>
+      <div class="workout-venue-options" role="group" aria-label="Место тренировки">
+        <button type="button" class="workout-venue-button" id="workout-venue-home" aria-pressed="true">🏠 Дома</button>
+        <button type="button" class="workout-venue-button" id="workout-venue-gym" aria-pressed="false">🏋️ Фитнес-клуб</button>
+      </div>
+      <div class="workout-venue-status" id="workout-venue-status"></div>
+    </div>
+
     <div class="card big">
       <div class="workout-eyebrow" id="workout-program">ПЛАН НА СЕГОДНЯ</div>
       <h1 id="workout-title"></h1>

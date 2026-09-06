@@ -29,6 +29,43 @@ body.no-tabbar { padding-bottom: 0; } /* панель скрыта в фокус
 .workout-guidance-label { color: #8E8E93; font-size: 10px; font-weight: 800; letter-spacing: .06em; }
 .workout-eyebrow { margin-bottom: 4px; }
 .workout-guidance-label { margin: 14px 0 4px; }
+.workout-venue { padding: 15px; }
+.workout-venue-label {
+  margin: 0 2px 10px;
+  font-size: 14px;
+  font-weight: 800;
+}
+.workout-venue-options {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: 5px;
+  padding: 4px;
+  border-radius: 15px;
+  background: #EFEFF4;
+}
+.workout-venue-button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 12px;
+  color: #636366;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.workout-venue-button.selected {
+  color: #0A67D8;
+  background: #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, .09);
+}
+.workout-venue-status {
+  margin: 9px 2px 0;
+  color: #636366;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
 .card.accent { background: #0A84FF; color: #fff; }
 .card.accent .s { color: #cfe4ff; }
 .card.accent .history-sub { color: #cfe4ff; }

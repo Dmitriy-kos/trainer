@@ -164,11 +164,23 @@ export function showTodayError(msg) {
 
 // ---------- Тренировка ----------
 
-export function renderWorkout({ hint, programTitle, weekLabel, dayLabels, cardioLabel, todayDay, resumeLabel, measureLabel, boostLabel, pullupLabel }) {
+export function renderWorkout({ hint, programTitle, weekLabel, dayLabels, cardioLabel, todayDay, venue, venueVisible, venueStatus, resumeLabel, measureLabel, boostLabel, pullupLabel }) {
   $("workout-program").textContent = programTitle ?? "План на сегодня";
   $("workout-title").textContent = hint;
   $("workout-week").textContent = weekLabel;
   $("workout-pullup-value").textContent = pullupLabel ?? "";
+
+  const venueSelector = $("workout-venue");
+  venueSelector.hidden = !venueVisible;
+  if (venueVisible) {
+    for (const value of ["home", "gym"]) {
+      const button = $(`workout-venue-${value}`);
+      const selected = venue === value;
+      button.classList.toggle("selected", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    }
+    $("workout-venue-status").textContent = venueStatus ?? "";
+  }
 
   const resumeTile = $("workout-resume-tile");
   if (resumeLabel) {

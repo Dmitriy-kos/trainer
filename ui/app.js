@@ -4,7 +4,7 @@
 import * as store from "../core/store.js";
 import { autoregulationHint, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, restAlertSecond, formatRest, withActualEffort, restPresetDurations, backupReminder, withConfirmedPullupMax } from "../core/logic.js";
 import { parseSetInput, formatLastSets, formatWorkoutDate, schemeTargetReps, latestCacheVersion, humanScheme } from "../core/format.js";
-import { PROGRAMS, programByNumber, planForSession, programWeekdayHint, programDayForWeekday, programDayTitle, techniqueImage, DAY_PLANS, globalWeekNumber } from "../core/plan.js";
+import { PROGRAMS, programByNumber, programVariant, gymReturnRemaining, planForSession, programWeekdayHint, programDayForWeekday, programDayTitle, techniqueImage, DAY_PLANS, globalWeekNumber } from "../core/plan.js";
 import { techniqueGuide } from "../core/technique.js";
 import { lastSets, lastExerciseComment, withExerciseComment, sessionSummary, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
@@ -25,6 +25,7 @@ const state = {
   sets: [],
   programStart: DEFAULT_PROGRAM_START,
   scheduleAdjustments: [], // вставки недель поверх базовой даты; прошлое не переписывают
+  workoutVenue: "home", // выбор места для следующей сессии; в самой сессии хранится отдельно
   session: null,       // текущая открытая силовая сессия (в памяти, синхронно с store)
   exercises: [],        // planForSession(session), отсортировано по orderIdx
   cursorIdx: 0,          // какое упражнение сессии сейчас на экране (Шаг 8: порядок свободный)
@@ -149,14 +150,16 @@ function renderTodayScreen() {
     // Шаг 8: порядок свободный — считаем незакрытые по данным, а не по progressIdx
     // (он теперь курсор «где я», а не счётчик «сколько сделано»).
     const remaining = plan ? sessionRemaining(state.sets, unfinished.id, plan) : 0;
-    const label = dayTypeLabel(unfinished.day, unfinished.program);
+    const label = dayTypeLabel(unfinished.day, unfinished.program, unfinished.venue);
     resumeLabel = `Продолжить: ${label} от ${unfinished.date} (осталось ${remaining} из ${total})`;
   }
 
   const br = backupReminder(state.lastBackupDate, today, state.sessions.length > 0);
   const backupLabel = br ? (br.days == null ? "⚠️ Сделай резервную копию истории" : `⚠️ Копию не делал ${br.days} дн.`) : null;
 
-  const dayLabel = programWeekdayHint(program, weekday);
+  const dayLabel = number === 3 && todayDay
+    ? `${todayDay} · дома или в зале`
+    : programWeekdayHint(program, weekday);
   const pullupN = state.pullupMax ? state.pullupMax.value : "—";
   const workoutSub = `Сегодня: ${dayLabel} · максимум подтягиваний — ${pullupN}`;
   const { weightsSub, weightsAccent } = weightsHubVm(today, weekday);
@@ -302,9 +305,12 @@ function renderWorkoutScreen() {
   const today = todayStr();
   const { number, week } = programForDate(activeProgramStart(today), today);
   const program = programByNumber(number);
-  const hint = programWeekdayHint(program, weekday);
+  const venue = number === 3 ? state.workoutVenue : "home";
+  const variant = programVariant(program, venue);
+  const hint = programWeekdayHint(program, weekday, venue);
   const todayDay = programDayForWeekday(program, weekday);
   const unfinished = unfinishedSession(state.sessions);
+  const returnRemaining = number === 3 ? gymReturnRemaining(state.sessions) : 0;
 
   let resumeLabel = null;
   if (unfinished) {
@@ -313,7 +319,7 @@ function renderWorkoutScreen() {
     // Шаг 8: порядок свободный — считаем незакрытые по данным, а не по progressIdx
     // (он теперь курсор «где я», а не счётчик «сколько сделано»).
     const remaining = plan ? sessionRemaining(state.sets, unfinished.id, plan) : 0;
-    const label = dayTypeLabel(unfinished.day, unfinished.program);
+    const label = dayTypeLabel(unfinished.day, unfinished.program, unfinished.venue);
     resumeLabel = `Продолжить: ${label} от ${unfinished.date} (осталось ${remaining} из ${total})`;
   }
 
@@ -328,19 +334,32 @@ function renderWorkoutScreen() {
 
   screens.renderWorkout({
     hint,
-    programTitle: program.title,
-    weekLabel: program.weekLabels[week],
+    programTitle: variant.title,
+    weekLabel: venue === "gym" && returnRemaining > 0
+      ? program.gym.weekLabels[1]
+      : variant.weekLabels[week],
     dayLabels: Object.fromEntries(["A", "B", "C"].map((day) => {
-      const title = programDayTitle(program, day);
-      return [day, program.dayTitles?.[day] ? `${day} · ${title}` : title];
+      const title = programDayTitle(program, day, venue);
+      return [day, variant.dayTitles?.[day] ? `${day} · ${title}` : title];
     })),
-    cardioLabel: program.cardio?.buttonLabel,
+    cardioLabel: variant.cardio?.buttonLabel ?? program.cardio?.buttonLabel,
     todayDay,
+    venue,
+    venueVisible: number === 3,
+    venueStatus: venue === "gym" && returnRemaining > 0
+      ? `После паузы: ещё ${returnRemaining} ${pluralRu(returnRemaining, "облегчённая тренировка", "облегчённые тренировки", "облегчённых тренировок")}`
+      : venue === "gym" ? "Возвратный блок завершён" : "Резинки 15/35/50 кг и скакалка",
     resumeLabel,
     measureLabel,
     boostLabel,
     pullupLabel: pullupMaxTileLabel(),
   });
+}
+
+function onWorkoutVenueChange(venue) {
+  if (venue !== "home" && venue !== "gym") return;
+  state.workoutVenue = venue;
+  renderWorkoutScreen();
 }
 
 // openSessionFlow стал async (нормализация старых пропусков пишет в БД) —
@@ -575,18 +594,27 @@ function goHistory() {
 // ---------- Силовая сессия ----------
 
 // Человеческое имя типа сессии по букве дня (P1/P2 — подкачки после бега).
-function dayTypeLabel(day, programNumber = null) {
-  if (day === "RUN") return programNumber === 3 ? "Кардио" : "Бег";
+function dayTypeLabel(day, programNumber = null, venue = null) {
+  if (day === "RUN") {
+    if (programNumber !== 3) return "Бег";
+    return venue ? `${venue === "gym" ? "Зал" : "Дом"} · Кардио` : "Кардио";
+  }
   if (day === "T") return "Замеры";
   if (day === "P1" || day === "P2") return "Подкачка";
-  return `Силовая ${day}`;
+  const base = `Силовая ${day}`;
+  if (programNumber !== 3) return base;
+  return `${venue === "gym" ? "Зал" : "Дом"} · ${base}`;
 }
 
 async function onStartStrength(day) {
   const today = todayStr();
   const { number, week } = programForDate(activeProgramStart(today), today);
   const program = day === "T" && state.measureProgram ? state.measureProgram : number;
-  const session = { date: today, day, week, status: "open", wellbeing: null, note: null, progressIdx: 0, program };
+  const venue = program === 3 ? state.workoutVenue : null;
+  const session = {
+    date: today, day, week, status: "open", wellbeing: null, note: null, progressIdx: 0, program,
+    ...(venue ? { venue, gymReturn: venue === "gym" && gymReturnRemaining(state.sessions) > 0 } : {}),
+  };
   const id = await store.addSession(session);
   const withId = { ...session, id };
   state.sessions.push(withId);
@@ -752,9 +780,10 @@ function buildSessionVm() {
   // раскрываем по текущей неделе — на карточке нет скобок и шифровок (CEO 21.07.2026).
   const gWeek = globalWeekNumber(state.session.program ?? 1, state.session.week);
   const program = programByNumber(state.session.program ?? 1);
+  const variant = programVariant(program, state.session.venue);
   let schemeLine = humanScheme(item.scheme, gWeek);
   let pullupMaxLabel = null;
-  if (isPullup) {
+  if (isPullup && !(state.session.program === 3 && state.session.venue === "gym")) {
     const maxVal = state.pullupMax ? state.pullupMax.value : null;
     schemeLine = humanScheme(pullupDayScheme(
       state.session.program ?? 1,
@@ -769,14 +798,16 @@ function buildSessionVm() {
 
   return {
     stepLabel: `Осталось ${remaining} из ${state.exercises.length}`,
-    pillLabel: `${dayTypeLabel(state.session.day, state.session.program)} · Неделя ${state.session.week}`,
+    pillLabel: `${dayTypeLabel(state.session.day, state.session.program, state.session.venue)} · Неделя ${state.session.week}`,
     strip: state.exercises.map((it, i) => ({ status: statuses[i], here: i === idx, label: stripLabel(it.exercise) })),
     techniqueImg: techniqueImage(item.exercise),
     techniqueGuide: techniqueGuide(item.exercise),
     exercise: item.exercise,
     schemeLine,
-    dayBrief: program.dayBriefs?.[state.session.day] ?? null,
-    inputPlaceholder: (state.session.program ?? 1) === 3
+    dayBrief: state.session.gymReturn
+      ? `Возврат после 2 недель: сегодня только 2 рабочих подхода, усилие не выше 7/10. ${variant.dayBriefs?.[state.session.day] ?? ""}`
+      : variant.dayBriefs?.[state.session.day] ?? null,
+    inputPlaceholder: (state.session.program ?? 1) === 3 && state.session.venue !== "gym"
       ? "напр. 0-8,8,8 — вес тела записывай как 0"
       : "напр. 50-5,5,5 или 50-5 52-5",
     pullupMaxLabel,
@@ -788,7 +819,7 @@ function buildSessionVm() {
     // «Так же» имеет смысл только для ещё не записанного упражнения (ярлык «повторить
     // прошлый раз»). Если статус уже done/skipped/pain — кнопка неактивна, иначе тап по
     // кружку полоски на записанном упражнении может молча затереть сегодняшние числа.
-    sameDisabled: last.length === 0 || statuses[idx] !== "todo",
+    sameDisabled: last.length === 0 || statuses[idx] !== "todo" || !!state.session.gymReturn,
     recordedText,
     backLabel: idx === 0 ? "← выйти" : "← назад",
     forwardDisabled: idx >= state.exercises.length - 1,
@@ -882,7 +913,7 @@ async function onSame() {
   const item = currentItem();
   // Страховка от гонки: кнопка и так неактивна для уже записанного упражнения
   // (см. sameDisabled в buildSessionVm), но если тап всё же прошёл — не пишем поверх.
-  if (exerciseStatus(state.sets, state.session.id, item.exercise) !== "todo") return;
+  if (exerciseStatus(state.sets, state.session.id, item.exercise) !== "todo" || state.session.gymReturn) return;
   const last = lastSets(state.sessions, state.sets, item.exercise);
   if (last.length === 0) return;
   const rows = last.map((s) => ({
@@ -962,7 +993,7 @@ async function onSkip() {
 function buildDoneVm(session) {
   const result = sessionSummary(session, state.sets, planForSession(session));
   return {
-    eyebrow: `${dayTypeLabel(session.day, session.program)} · Неделя ${session.week}`,
+    eyebrow: `${dayTypeLabel(session.day, session.program, session.venue)} · Неделя ${session.week}`,
     summary: `${result.completedCount} из ${result.totalExercises} упражнений · ${result.totalSets} ${pluralRu(result.totalSets, "подход", "подхода", "подходов")}`,
     items: result.items,
   };
@@ -997,8 +1028,13 @@ function onDoneEdit() {
 async function onStartRun() {
   const today = todayStr();
   const { number, week } = programForDate(activeProgramStart(today), today);
-  const cardio = programByNumber(number).cardio;
-  const run = { date: today, day: "RUN", week, status: "done", wellbeing: null, note: null, progressIdx: 0, program: number };
+  const program = programByNumber(number);
+  const venue = number === 3 ? state.workoutVenue : null;
+  const cardio = programVariant(program, venue).cardio ?? program.cardio;
+  const run = {
+    date: today, day: "RUN", week, status: "done", wellbeing: null, note: null, progressIdx: 0, program: number,
+    ...(venue ? { venue } : {}),
+  };
   const id = await store.addSession(run);
   const withId = { ...run, id };
   state.sessions.push(withId);
@@ -1240,7 +1276,7 @@ async function onFoodRetryPending() {
 // ---------- История ----------
 
 function buildHistoryItemVm(session) {
-  const typeLabel = dayTypeLabel(session.day, session.program);
+  const typeLabel = dayTypeLabel(session.day, session.program, session.venue);
   let subLabel = `Неделя ${session.week}`;
   if (session.wellbeing != null) subLabel += ` · самочувствие ${session.wellbeing}/10`;
   if (session.status === "open") subLabel += " · не завершена";
@@ -1647,6 +1683,8 @@ function bindEvents() {
   screens.on("session-technique", "click", (event) => {
     if (event.target.id === "session-technique") screens.showSessionTechnique(false);
   });
+  screens.on("workout-venue-home", "click", () => onWorkoutVenueChange("home"));
+  screens.on("workout-venue-gym", "click", () => onWorkoutVenueChange("gym"));
   screens.on("btn-day-a", "click", () => guarded(() => onStartStrength("A")));
   screens.on("btn-day-b", "click", () => guarded(() => onStartStrength("B")));
   screens.on("btn-day-c", "click", () => guarded(() => onStartStrength("C")));
