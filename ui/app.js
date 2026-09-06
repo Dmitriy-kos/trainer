@@ -336,7 +336,7 @@ function renderWorkoutScreen() {
     hint,
     programTitle: variant.title,
     weekLabel: venue === "gym" && returnRemaining > 0
-      ? program.gym.weekLabels[1]
+      ? program.gym.returnLabel
       : variant.weekLabels[week],
     dayLabels: Object.fromEntries(["A", "B", "C"].map((day) => {
       const title = programDayTitle(program, day, venue);
