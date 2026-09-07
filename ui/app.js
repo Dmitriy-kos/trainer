@@ -783,17 +783,19 @@ function buildSessionVm() {
   const variant = programVariant(program, state.session.venue);
   let schemeLine = humanScheme(item.scheme, gWeek);
   let pullupMaxLabel = null;
-  if (isPullup && !(state.session.program === 3 && state.session.venue === "gym")) {
+  if (isPullup) {
+    pullupMaxLabel = pullupMaxTileLabel();
+  }
+  if (isPullup && !(state.session.program === 3 && state.session.venue === "gym" && state.session.gymReturn)) {
     const maxVal = state.pullupMax ? state.pullupMax.value : null;
     schemeLine = humanScheme(pullupDayScheme(
-      state.session.program ?? 1,
+      state.session.program === 3 && state.session.venue === "gym" ? 2 : state.session.program ?? 1,
       state.session.week,
       state.session.day,
       maxVal,
       state.pullupMax?.date ?? null,
       state.session.date,
     ), gWeek);
-    pullupMaxLabel = pullupMaxTileLabel();
   }
 
   return {
@@ -805,7 +807,7 @@ function buildSessionVm() {
     exercise: item.exercise,
     schemeLine,
     dayBrief: state.session.gymReturn
-      ? `Возврат после 2 недель: сегодня только 2 рабочих подхода, усилие не выше 7/10. ${variant.dayBriefs?.[state.session.day] ?? ""}`
+      ? `Возврат после 2 недель: упражнения прежней программы сохранены, объём снижен по схеме, усилие не выше 7/10. ${variant.dayBriefs?.[state.session.day] ?? ""}`
       : variant.dayBriefs?.[state.session.day] ?? null,
     inputPlaceholder: (state.session.program ?? 1) === 3 && state.session.venue !== "gym"
       ? "напр. 0-8,8,8 — вес тела записывай как 0"
