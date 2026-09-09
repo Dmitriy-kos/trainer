@@ -19,13 +19,14 @@ import * as screens from "./screens.js";
 
 const DEFAULT_PROGRAM_START = "2026-06-22";
 const DEFAULT_REST_DURATION = 120;
+const DEFAULT_WORKOUT_VENUE = "gym";
 
 const state = {
   sessions: [],
   sets: [],
   programStart: DEFAULT_PROGRAM_START,
   scheduleAdjustments: [], // вставки недель поверх базовой даты; прошлое не переписывают
-  workoutVenue: "home", // выбор места для следующей сессии; в самой сессии хранится отдельно
+  workoutVenue: DEFAULT_WORKOUT_VENUE, // при входе сначала зал; в самой сессии выбор хранится отдельно
   session: null,       // текущая открытая силовая сессия (в памяти, синхронно с store)
   exercises: [],        // planForSession(session), отсортировано по orderIdx
   cursorIdx: 0,          // какое упражнение сессии сейчас на экране (Шаг 8: порядок свободный)
@@ -294,6 +295,9 @@ async function onFocusWidgetReset() {
 // ---------- Экран «Тренировка» ----------
 
 function goWorkout() {
+  // Зал — базовый вариант. Дом выбирается осознанно для конкретного входа,
+  // когда до фитнес-клуба добраться не получается.
+  state.workoutVenue = DEFAULT_WORKOUT_VENUE;
   screens.showScreen("workout");
   screens.renderTabbar("workout");
   renderWorkoutScreen();
