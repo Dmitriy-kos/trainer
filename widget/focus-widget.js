@@ -16,10 +16,7 @@ function localDate() {
 function canonicalItems() {
   return [
     { id: "fish_oil", icon: "🐟", label: "Рыбий жир", done: false },
-    { id: "meditation", icon: "🧘", label: "Медитация", done: false },
     { id: "protein", icon: "🥤", label: "Протеин", done: false },
-    { id: "creatine", icon: "⚡", label: "Креатин", done: false },
-    { id: "audiobook", icon: "🎧", label: "Книга", done: false },
   ];
 }
 
@@ -37,9 +34,8 @@ function normalizeSnapshot(value) {
     return { date: localDate(), appUrl: value.appUrl || TRAINER_URL, items: canonicalItems() };
   }
 
-  // Миграция v32 → v33: старый Gist содержит четыре строки. Дополняем его
-  // «Книгой» как невыполненной, поэтому новый скрипт работает ещё до первого
-  // открытия обновлённого PWA. Неизвестные/удалённые строки игнорируем.
+  // Из старого Gist или кэша берём только действующие фокусы.
+  // Отсутствующие строки считаем невыполненными.
   const received = new Map(
     value.items
       .filter((item) => item && typeof item.id === "string")

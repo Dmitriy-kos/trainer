@@ -1,12 +1,11 @@
 export const DAILY_HABITS = Object.freeze([
   Object.freeze({ id: "fish_oil", icon: "🐟", label: "Выпил рыбий жир" }),
-  Object.freeze({ id: "meditation", icon: "🧘", label: "Сделал медитацию" }),
   Object.freeze({ id: "protein", icon: "🥤", label: "Выпил протеин" }),
-  Object.freeze({ id: "creatine", icon: "⚡", label: "Выпил креатин" }),
-  Object.freeze({ id: "audiobook", icon: "🎧", label: "Прослушал книгу" }),
 ]);
 
-const HABIT_IDS = new Set(DAILY_HABITS.map((habit) => habit.id));
+const ACTIVE_HABIT_IDS = new Set(DAILY_HABITS.map((habit) => habit.id));
+// Снятые с экрана фокусы сохраняем в истории и резервных копиях.
+const HABIT_IDS = new Set([...ACTIVE_HABIT_IDS, "meditation", "creatine", "audiobook"]);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // В meta храним компактный журнал: { "2026-07-31": ["meditation", ...] }.
@@ -25,7 +24,7 @@ export function normalizeHabitsByDate(value) {
 }
 
 export function toggleHabit(habitsByDate, date, habitId) {
-  if (!DATE_RE.test(date) || !HABIT_IDS.has(habitId)) return normalizeHabitsByDate(habitsByDate);
+  if (!DATE_RE.test(date) || !ACTIVE_HABIT_IDS.has(habitId)) return normalizeHabitsByDate(habitsByDate);
 
   const next = normalizeHabitsByDate(habitsByDate);
   const completed = new Set(next[date] ?? []);
@@ -33,7 +32,7 @@ export function toggleHabit(habitsByDate, date, habitId) {
   else completed.add(habitId);
 
   if (completed.size === 0) delete next[date];
-  else next[date] = DAILY_HABITS.map((habit) => habit.id).filter((id) => completed.has(id));
+  else next[date] = [...HABIT_IDS].filter((id) => completed.has(id));
   return next;
 }
 

@@ -9,11 +9,11 @@ import { techniqueGuide } from "../core/technique.js";
 import { lastSets, lastExerciseComment, withExerciseComment, sessionSummary, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
 import { latestWeigh, weighDeltas, sortedByDateDesc, daysSince, METRICS, BODYCOMP_METRICS, metricHistory, metricDelta, deltaTone, parseWeighDraft } from "../core/weigh.js";
-import { DEFAULT_GOALS, dayTotals, scalePortion } from "../core/food.js";
+import { DEFAULT_GOALS } from "../core/food.js";
 import { habitsViewModel, normalizeHabitsByDate, toggleHabit } from "../core/habits.js";
 import { buildFocusSnapshot, fetchFocusGist, syncFocusGist } from "../core/focus-sync.js";
 import { normalizeScheduleAdjustments, programStartForDate } from "../core/schedule.js";
-import { recognizeFood, recognizeWeights } from "../core/claude.js";
+import { recognizeWeights } from "../core/claude.js";
 import { compressImage } from "./image.js";
 import * as screens from "./screens.js";
 
@@ -40,7 +40,7 @@ const state = {
   boostDay: null,        // «P1»/«P2», если сегодня беговой день недель 6-7 с опцией подкачки; null = плитку не показывать
   pullupMax: null,       // {value, date} | null — сохранённый максимум строгих подтягиваний
   lastBackupDate: null,  // дата последней резервной копии (meta) — плитка-напоминание на «Сегодня»
-  habitsByDate: {},      // дневные отметки пяти фокусов: { YYYY-MM-DD: [habitId] }
+  habitsByDate: {},      // дневные отметки фокусов: { YYYY-MM-DD: [habitId] }
   focusSyncToken: null,  // GitHub PAT для secret Gist — только meta, в бэкап не попадает
   focusSyncGistId: null, // id secret Gist, который читает Scriptable-виджет
   focusSyncBusy: false,
@@ -50,11 +50,7 @@ const state = {
   timer: { startedAt: null, durationSec: DEFAULT_REST_DURATION, running: false, finished: false },
   food: [],             // записи еды (все даты), зеркало store
   apiKey: null,          // ключ Claude API — только в meta, в бэкап не попадает
-  foodGoals: { ...DEFAULT_GOALS }, // {kcal, protein} — цели дня, редактируются в настройках
-  foodDraft: null,       // черновик карточки-подтверждения: {base:{kcal,protein,fat,carbs}, name, kcal, protein, fat, carbs, comment, portion, source, editingId|null, pendingPayload|null}
-  foodTextOpen: false,
-  foodSettingsOpen: false,
-  foodBusy: false,       // идёт распознавание (спиннер)
+  foodGoals: { ...DEFAULT_GOALS }, // прежние цели еды — сохраняются для совместимости данных
   weights: [],           // записи взвешивания (все даты), зеркало store — читается в init()
   weighDraft: null,      // черновик карточки взвешивания: {values: {14 ключей METRICS}, source, editingId|null}
   weighBusy: false,      // идёт распознавание скрина весов (спиннер)
@@ -174,7 +170,6 @@ function renderTodayScreen() {
   });
   screens.renderHabits(habitsViewModel(state.habitsByDate, today));
   renderFocusWidgetSettings();
-  screens.renderFoodTile(foodTileLabel());
 }
 
 async function initFocusViewer(gistId) {
@@ -488,9 +483,23 @@ function onWeighManual() {
   renderWeightsScreen();
 }
 
+async function onWeightsSettingsSave() {
+  const apiKey = screens.getWeightsApiKey();
+  if (!apiKey) {
+    screens.showWeightsError("Вставь ключ API.");
+    return;
+  }
+  await store.setMeta("apiKey", apiKey);
+  state.apiKey = apiKey;
+  screens.closeWeightsSettings();
+  state.flash = { icon: "⚙️", text: "Ключ сохранён", danger: false };
+  renderWeightsScreen();
+}
+
 function onWeighScreenBtn() {
   if (!state.apiKey) {
-    screens.showWeightsError("Ключ API вводится в «Еда → ⚙️ Настройки еды» — один на всё приложение.");
+    screens.openWeightsSettings();
+    screens.showWeightsError("Добавь ключ API в «Настройки распознавания» ниже.");
     return;
   }
   screens.showWeightsError("");
@@ -1064,221 +1073,6 @@ async function onRunDone() {
   goToday();
 }
 
-// ---------- Еда ----------
-
-function foodTileLabel() {
-  const t = dayTotals(state.food, todayStr());
-  return `Еда 🍽 ${t.kcal} / ${state.foodGoals.kcal} ккал · белок ${t.protein} / ${state.foodGoals.protein} г`;
-}
-
-function goFood() {
-  state.foodDraft = null;
-  state.foodTextOpen = false;
-  state.foodSettingsOpen = false;
-  screens.showFoodError("");
-  screens.showScreen("food");
-  screens.renderTabbar("food");
-  renderFoodScreen();
-}
-
-function buildFoodVm() {
-  const today = todayStr();
-  const t = dayTotals(state.food, today);
-  const todays = state.food.filter((e) => e.date === today)
-    .slice().sort((a, b) => (a.time < b.time ? 1 : -1));
-  return {
-    totals: { kcal: t.kcal, kcalGoal: state.foodGoals.kcal, protein: t.protein, proteinGoal: state.foodGoals.protein },
-    entries: todays.map((e) => ({
-      id: e.id,
-      label: e.status === "pending" ? `${e.time} · ⏳ ждёт сети` : `${e.time} · ${e.name}`,
-      sub: e.status === "pending" ? (e.pendingPayload && e.pendingPayload.text ? `«${e.pendingPayload.text}»` : "фото сохранено") : `${e.kcal} ккал · белок ${e.protein} г`,
-      pending: e.status === "pending",
-    })),
-    pendingCount: state.food.filter((e) => e.status === "pending").length,
-    draft: state.foodDraft ? {
-      name: state.foodDraft.name, kcal: state.foodDraft.kcal, protein: state.foodDraft.protein,
-      portion: state.foodDraft.portion, isEdit: state.foodDraft.editingId != null,
-    } : null,
-    settings: state.foodSettingsOpen ? { hasKey: !!state.apiKey, kcalGoal: state.foodGoals.kcal, proteinGoal: state.foodGoals.protein } : null,
-    textOpen: state.foodTextOpen,
-    busy: state.foodBusy,
-    flash: consumeFlash(),
-  };
-}
-
-function renderFoodScreen() {
-  screens.renderFood(buildFoodVm(), { onEntryTap: (id) => onFoodEntryTap(id) });
-}
-
-function onFoodEntryTap(id) {
-  const e = state.food.find((x) => x.id === id);
-  if (!e || e.status === "pending") return;
-  state.foodDraft = {
-    base: { kcal: e.kcal, protein: e.protein, fat: e.fat, carbs: e.carbs },
-    name: e.name, kcal: e.kcal, protein: e.protein, fat: e.fat, carbs: e.carbs,
-    comment: "", portion: e.portion, source: e.source, editingId: id, pendingPayload: null,
-  };
-  renderFoodScreen();
-}
-
-function onFoodPortion(factor) {
-  if (!state.foodDraft || state.foodDraft.editingId != null) return;
-  const scaled = scalePortion(state.foodDraft.base, factor);
-  state.foodDraft = { ...state.foodDraft, ...scaled, portion: factor };
-  renderFoodScreen();
-}
-
-function readDraftFields() {
-  const f = screens.getFoodDraftFields();
-  if (!f.name.trim() || String(f.kcal).trim() === "" || String(f.protein).trim() === "") {
-    screens.showFoodError("Нужны название и неотрицательные числа.");
-    return null;
-  }
-  const kcal = Math.round(Number(f.kcal));
-  const protein = Math.round(Number(f.protein));
-  if (!f.name.trim() || !Number.isFinite(kcal) || kcal < 0 || !Number.isFinite(protein) || protein < 0) {
-    screens.showFoodError("Нужны название и неотрицательные числа.");
-    return null;
-  }
-  return { name: f.name.trim(), kcal, protein };
-}
-
-async function onFoodDraftSave() {
-  if (!state.foodDraft) return;
-  const fields = readDraftFields();
-  if (!fields) return;
-  screens.showFoodError("");
-  const d = state.foodDraft;
-  if (d.editingId != null) {
-    const old = state.food.find((x) => x.id === d.editingId);
-    const updated = { ...old, ...fields, fat: d.fat, carbs: d.carbs, status: "done", pendingPayload: null };
-    await store.updateFood(updated);
-    state.food = state.food.map((x) => (x.id === updated.id ? updated : x));
-  } else {
-    const rec = { date: todayStr(), time: todayTimeStr(), ...fields, fat: d.fat, carbs: d.carbs,
-      portion: d.portion, source: d.source, status: "done", pendingPayload: null };
-    const id = await store.addFood(rec);
-    state.food.push({ id, ...rec });
-  }
-  state.foodDraft = null;
-  state.flash = { icon: "🍽", text: "Записано", danger: false };
-  renderFoodScreen();
-}
-
-async function onFoodDraftDelete() {
-  if (!state.foodDraft || state.foodDraft.editingId == null) return;
-  await store.deleteFood(state.foodDraft.editingId);
-  state.food = state.food.filter((x) => x.id !== state.foodDraft.editingId);
-  state.foodDraft = null;
-  state.flash = { icon: "🗑", text: "Удалено", danger: false };
-  renderFoodScreen();
-}
-
-function onFoodDraftCancel() {
-  state.foodDraft = null;
-  screens.showFoodError("");
-  renderFoodScreen();
-}
-
-async function onFoodSettingsSave() {
-  const s = screens.getFoodSettings();
-  const kcalGoal = Math.round(Number(s.kcalGoal));
-  const proteinGoal = Math.round(Number(s.proteinGoal));
-  if (!Number.isFinite(kcalGoal) || kcalGoal <= 0 || !Number.isFinite(proteinGoal) || proteinGoal <= 0) {
-    screens.showFoodError("Цели должны быть положительными числами.");
-    return;
-  }
-  screens.showFoodError("");
-  if (s.apiKey) {
-    await store.setMeta("apiKey", s.apiKey);
-    state.apiKey = s.apiKey;
-  }
-  state.foodGoals = { kcal: kcalGoal, protein: proteinGoal };
-  await store.setMeta("foodGoals", state.foodGoals);
-  state.foodSettingsOpen = false;
-  state.flash = { icon: "⚙️", text: "Настройки сохранены", danger: false };
-  renderFoodScreen();
-}
-
-function openDraftFromRecognition(parsed, source, editingId = null) {
-  state.foodDraft = {
-    base: { kcal: parsed.kcal, protein: parsed.protein, fat: parsed.fat, carbs: parsed.carbs },
-    ...parsed, portion: 1, source, editingId, pendingPayload: null,
-  };
-  state.foodBusy = false;
-  renderFoodScreen();
-}
-
-async function queuePending(payload) {
-  // Нет сети: сохраняем сырьё (сжатое фото или текст) в очередь — распознаем позже.
-  const rec = { date: todayStr(), time: todayTimeStr(), name: "", kcal: 0, protein: 0, fat: 0, carbs: 0,
-    portion: 1, source: payload.image ? "photo" : "text", status: "pending", pendingPayload: payload };
-  const id = await store.addFood(rec);
-  state.food.push({ id, ...rec });
-  state.foodBusy = false;
-  state.flash = { icon: "⏳", text: "Нет связи — сохранил, распознаю при сети.", danger: false };
-  renderFoodScreen();
-}
-
-async function recognizeOrQueue(payload, source) {
-  if (!state.apiKey) {
-    state.foodSettingsOpen = true;
-    state.foodBusy = false;
-    renderFoodScreen();
-    screens.showFoodError("Сначала укажи ключ API (console.anthropic.com) и сохрани настройки.");
-    return;
-  }
-  state.foodBusy = true;
-  screens.showFoodError("");
-  renderFoodScreen();
-  try {
-    const parsed = await recognizeFood({ apiKey: state.apiKey, image: payload.image ?? null, text: payload.text ?? null });
-    openDraftFromRecognition(parsed, source);
-  } catch (e) {
-    if (e.offline) { await queuePending(payload); return; }
-    state.foodBusy = false;
-    renderFoodScreen();
-    screens.showFoodError(e.message);
-  }
-}
-
-async function onFoodPhotoPick(file) {
-  if (!file) return;
-  let image;
-  try {
-    image = await compressImage(file);
-  } catch (e) {
-    screens.showFoodError(e.message);
-    return;
-  }
-  await recognizeOrQueue({ image }, "photo");
-}
-
-async function onFoodTextSubmit() {
-  const text = screens.getFoodTextInput().trim();
-  if (!text) return;
-  state.foodTextOpen = false;
-  await recognizeOrQueue({ text }, "text");
-}
-
-async function onFoodRetryPending() {
-  if (state.foodDraft) return;
-  const p = state.food.filter((e) => e.status === "pending").sort((a, b) => a.id - b.id)[0];
-  if (!p || !state.apiKey) return;
-  state.foodBusy = true;
-  screens.showFoodError("");
-  renderFoodScreen();
-  try {
-    const parsed = await recognizeFood({ apiKey: state.apiKey,
-      image: p.pendingPayload.image ?? null, text: p.pendingPayload.text ?? null });
-    openDraftFromRecognition(parsed, p.source, p.id);
-  } catch (e) {
-    state.foodBusy = false;
-    renderFoodScreen();
-    screens.showFoodError(e.offline ? "Сети всё ещё нет — попробуй позже." : e.message);
-  }
-}
-
 // ---------- История ----------
 
 function buildHistoryItemVm(session) {
@@ -1616,20 +1410,6 @@ function renderDemoHistory() {
   renderHistoryScreen();
 }
 
-function renderDemoFood() {
-  screens.showScreen("food");
-  screens.renderFood({
-    totals: { kcal: 1450, kcalGoal: 2250, protein: 96, proteinGoal: 160 },
-    entries: [
-      { id: 2, label: "13:05 · Гречка с курицей", sub: "550 ккал · белок 45 г", pending: false },
-      { id: 1, label: "08:30 · Овсянка с бананом", sub: "420 ккал · белок 14 г", pending: false },
-    ],
-    pendingCount: 1,
-    draft: { name: "Борщ со сметаной", kcal: 320, protein: 14, portion: 1, isEdit: false },
-    settings: null, textOpen: false, busy: false, flash: null,
-  }, { onEntryTap: () => {} });
-}
-
 // Демо для скриншотов Шага 7 (вёрстка v7: хаб-плитки, экран «Взвешивание»).
 // Без записи в БД — фикстуры прямо во view-model, как в остальных renderDemo*.
 
@@ -1667,8 +1447,7 @@ function renderDemoHub() {
     weightsSub: "Понедельник — день замера ⚖️",
     weightsAccent: true,
   });
-  screens.renderHabits(habitsViewModel({ "2026-07-31": ["meditation"] }, "2026-07-31"));
-  screens.renderFoodTile("Еда 🍽 1450 / 2250 ккал · белок 96 / 160 г");
+  screens.renderHabits(habitsViewModel({ "2026-07-31": ["fish_oil"] }, "2026-07-31"));
 }
 
 // ---------- Инициализация ----------
@@ -1699,10 +1478,7 @@ function bindEvents() {
   screens.on("resume-tile", "click", () => guarded(onResume));
   screens.on("backup-tile", "click", goHistory);
   screens.on("habit-fish_oil", "click", () => guarded(() => onHabitToggle("fish_oil")));
-  screens.on("habit-meditation", "click", () => guarded(() => onHabitToggle("meditation")));
   screens.on("habit-protein", "click", () => guarded(() => onHabitToggle("protein")));
-  screens.on("habit-creatine", "click", () => guarded(() => onHabitToggle("creatine")));
-  screens.on("habit-audiobook", "click", () => guarded(() => onHabitToggle("audiobook")));
   screens.on("focus-widget-connect", "click", () => guarded(onFocusWidgetConnect));
   screens.on("focus-widget-copy", "click", onFocusWidgetCopy);
   screens.on("focus-widget-reset", "click", () => guarded(onFocusWidgetReset));
@@ -1710,7 +1486,6 @@ function bindEvents() {
   // Вкладки нижней панели + плитки-разделы хаба.
   screens.on("tab-today", "click", goToday);
   screens.on("tab-workout", "click", goWorkout);
-  screens.on("tab-food", "click", goFood);
   screens.on("tab-weights", "click", goWeights);
   screens.on("hub-workout-tile", "click", goWorkout);
   screens.on("hub-weights-tile", "click", goWeights);
@@ -1748,23 +1523,7 @@ function bindEvents() {
 
   screens.on("run-done", "click", () => guarded(onRunDone));
 
-  screens.on("food-tile", "click", goFood);
-  screens.on("food-back", "click", goToday);
-  screens.on("food-portion-half", "click", () => onFoodPortion(0.5));
-  screens.on("food-portion-one", "click", () => onFoodPortion(1));
-  screens.on("food-portion-big", "click", () => onFoodPortion(1.5));
-  screens.on("food-draft-save", "click", () => guarded(onFoodDraftSave));
-  screens.on("food-draft-delete", "click", () => guarded(onFoodDraftDelete));
-  screens.on("food-draft-cancel", "click", onFoodDraftCancel);
-  screens.on("food-settings-btn", "click", () => { state.foodSettingsOpen = !state.foodSettingsOpen; renderFoodScreen(); });
-  screens.on("food-settings-save", "click", () => guarded(onFoodSettingsSave));
-  screens.on("food-text-btn", "click", () => { state.foodTextOpen = !state.foodTextOpen; renderFoodScreen(); });
-  screens.on("food-photo-btn", "click", screens.openFoodFilePicker);
-  screens.onFoodFilePicked((file) => guarded(async () => { await onFoodPhotoPick(file); screens.resetFoodFileInput(); }));
-  screens.on("food-text-submit", "click", () => guarded(onFoodTextSubmit));
-  screens.onInputEnter("food-text-input", () => guarded(onFoodTextSubmit));
-  screens.on("food-pending-tile", "click", () => guarded(onFoodRetryPending));
-
+  screens.on("weights-settings-save", "click", () => guarded(onWeightsSettingsSave));
   screens.on("weights-screen-btn", "click", onWeighScreenBtn);
   screens.on("weights-manual-btn", "click", onWeighManual);
   screens.onWeightsFilePicked((files) => guarded(async () => { await onWeighFilesPicked(files); screens.resetWeightsFileInput(); }));
@@ -1793,10 +1552,6 @@ async function init() {
   }
   if (params.get("screen") === "history-demo") {
     renderDemoHistory();
-    return;
-  }
-  if (params.get("screen") === "food-demo") {
-    renderDemoFood();
     return;
   }
   if (params.get("screen") === "weights-demo") {
