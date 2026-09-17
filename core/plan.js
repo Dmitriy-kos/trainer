@@ -36,7 +36,7 @@ const PROGRAM_1 = {
     ],
     C: [
       { exercise: "Фронтальный присед", orderIdx: 1, scheme: "4×6", targetRpe: 7, note: "или жим ногами, если ноги устали" },
-      { exercise: "Жим гантелей на наклонной", orderIdx: 2, scheme: "3×10", targetRpe: 7, note: "верх груди" },
+      { exercise: "Жим штанги на наклонной", orderIdx: 2, scheme: "3×10", targetRpe: 7, note: "верх груди; записывай общий вес штанги с грифом" },
       { exercise: "Подтягивания", orderIdx: 3, scheme: "по прогрессии", targetRpe: 8, note: "делаем свежим, до тяг — макс качественных" },
       { exercise: "Тяга штанги в наклоне", orderIdx: 4, scheme: "4×8", targetRpe: 7, note: "добивка после подтягиваний" },
       { exercise: "Аксессуары (суперсет)", orderIdx: 5, scheme: "планка 3×40с + подъём ног 3×12 + бицепс/трицепс 3×12", targetRpe: 7, note: "" },
@@ -73,7 +73,7 @@ const PROGRAM_2 = {
       { exercise: "Подтягивания", orderIdx: 2, scheme: "по прогрессии", targetRpe: 8, note: "вторыми, свежим; пока тянет спина — жимовые мышцы отдыхают" },
       { exercise: "Жим стоя (OHP)", orderIdx: 3, scheme: "3×6", targetRpe: 8, note: "строгий, без подседа; прогрессия повторами 6→7→8, потом +2,5 кг" },
       { exercise: "Тяга гантели одной рукой с опорой на лавку", orderIdx: 4, scheme: "3×8 / рука", targetRpe: 7, note: "грудь/рука на лавке — поясница выключена" },
-      { exercise: "Жим гантелей на наклонной", orderIdx: 5, scheme: "3×10", targetRpe: 7, note: "добивка на верх груди" },
+      { exercise: "Жим штанги на наклонной", orderIdx: 5, scheme: "3×10", targetRpe: 7, note: "верх груди; записывай общий вес штанги с грифом" },
       { exercise: "Планка", orderIdx: 6, scheme: "3×60 с", targetRpe: 7, note: "тело одной линией; не проваливай таз" },
     ],
     C: [
@@ -301,7 +301,6 @@ const EXERCISE_IMAGE = {
   "Тяга верхнего блока": "lat_pulldown",
   "Подтягивания (объёмный день)": "pullup",
   "Фронтальный присед": "front_squat",
-  "Жим гантелей на наклонной": "incline_db",
   "Тяга штанги в наклоне": "barbell_row",
   "Аксессуары (суперсет)": "accessory",
   "Взятие на грудь (power clean)": "power_clean",

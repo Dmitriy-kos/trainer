@@ -1575,6 +1575,7 @@ async function init() {
   bindEvents();
 
   await store.openDb();
+  await store.correctInclineHistory();
   let programStart = await store.getMeta("programStart");
   if (!programStart) {
     programStart = DEFAULT_PROGRAM_START;

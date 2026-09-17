@@ -1,3 +1,5 @@
+import { correctInclineExercise, correctInclineSession } from "./backup.js";
+
 // Тонкий адаптер IndexedDB. Никакой бизнес-логики — только CRUD-примитивы.
 // Форма записей — паритет с bot/db.py (SQLite), id теперь авто из IndexedDB.
 // Без юнит-тестов (нет IndexedDB в Node) — проверяется в браузере.
@@ -156,4 +158,31 @@ export function deleteWeigh(id) {
 
 export function getAllWeights() {
   return wrap(requireDb().transaction("weights", "readonly").objectStore("weights").getAll());
+}
+
+// Атомарная, повторяемая коррекция существующей истории и незакрытого вопроса.
+// Запускается до чтения состояния UI; id, sessionId, веса и курсоры не меняются.
+export async function correctInclineHistory() {
+  const t = requireDb().transaction(["sessions", "sets", "meta"], "readwrite");
+  const done = txDone(t);
+  for (const [name, correct] of [["sessions", correctInclineSession], ["sets", correctInclineExercise]]) {
+    const request = t.objectStore(name).openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      const original = cursor.value;
+      const updated = correct(original);
+      if (updated !== original) cursor.update(updated);
+      cursor.continue();
+    };
+  }
+  const meta = t.objectStore("meta");
+  const request = meta.get("pendingEffort");
+  request.onsuccess = () => {
+    const row = request.result;
+    if (!row) return;
+    const updated = correctInclineExercise(row.value);
+    if (updated !== row.value) meta.put({ ...row, value: updated });
+  };
+  await done;
 }
