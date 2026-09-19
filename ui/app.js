@@ -100,9 +100,9 @@ function goToday() {
   renderTodayScreen();
 }
 
-function pullupMaxTileLabel() {
-  return state.pullupMax
-    ? `${state.pullupMax.value} (обновлён ${state.pullupMax.date}) · тап — изменить`
+function pullupMaxTileLabel(pullupMax = state.pullupMax) {
+  return pullupMax
+    ? `${pullupMax.value} (обновлён ${pullupMax.date}) · тап — изменить`
     : "не задан · тап — ввести";
 }
 
@@ -304,7 +304,7 @@ function renderWorkoutScreen() {
   const today = todayStr();
   const { number, week } = programForDate(activeProgramStart(today), today);
   const program = programByNumber(number);
-  const venue = number === 3 ? state.workoutVenue : "home";
+  const venue = number === 3 ? state.workoutVenue : program.venue ?? "home";
   const variant = programVariant(program, venue);
   const hint = programWeekdayHint(program, weekday, venue);
   const todayDay = programDayForWeekday(program, weekday);
@@ -345,7 +345,9 @@ function renderWorkoutScreen() {
     todayDay,
     venue,
     venueVisible: number === 3,
-    venueStatus: venue === "gym" && returnRemaining > 0
+    venueStatus: number === 4
+      ? "Только фитнес-клуб"
+      : venue === "gym" && returnRemaining > 0
       ? `После паузы: ещё ${returnRemaining} ${pluralRu(returnRemaining, "облегчённая тренировка", "облегчённые тренировки", "облегчённых тренировок")}`
       : venue === "gym" ? "Возвратный блок завершён" : "Резинки 15/35/50 кг и скакалка",
     resumeLabel,
@@ -623,10 +625,13 @@ async function onStartStrength(day) {
   const today = todayStr();
   const { number, week } = programForDate(activeProgramStart(today), today);
   const program = day === "T" && state.measureProgram ? state.measureProgram : number;
-  const venue = program === 3 ? state.workoutVenue : null;
+  const venue = program === 3 ? state.workoutVenue : program === 4 ? "gym" : null;
   const session = {
     date: today, day, week, status: "open", wellbeing: null, note: null, progressIdx: 0, program,
-    ...(venue ? { venue, gymReturn: venue === "gym" && gymReturnRemaining(state.sessions) > 0 } : {}),
+    ...(venue ? {
+      venue,
+      ...(program === 3 ? { gymReturn: venue === "gym" && gymReturnRemaining(state.sessions) > 0 } : {}),
+    } : {}),
   };
   const id = await store.addSession(session);
   const withId = { ...session, id };
@@ -788,28 +793,13 @@ function buildSessionVm() {
     recordedText = "✓ " + formatLastSets(rec);
   }
 
-  const isPullup = item.exercise.startsWith("Подтягивания");
-  // Схему показываем словами («5 подходов по 3 повторения»), а вариант «нед. 5»
-  // раскрываем по текущей неделе — на карточке нет скобок и шифровок (CEO 21.07.2026).
-  const gWeek = globalWeekNumber(state.session.program ?? 1, state.session.week);
   const program = programByNumber(state.session.program ?? 1);
   const variant = programVariant(program, state.session.venue);
-  let schemeLine = humanScheme(item.scheme, gWeek);
-  let pullupMaxLabel = null;
-  if (isPullup) {
-    pullupMaxLabel = pullupMaxTileLabel();
-  }
-  if (isPullup && !(state.session.program === 3 && state.session.venue === "gym" && state.session.gymReturn)) {
-    const maxVal = state.pullupMax ? state.pullupMax.value : null;
-    schemeLine = humanScheme(pullupDayScheme(
-      state.session.program === 3 && state.session.venue === "gym" ? 2 : state.session.program ?? 1,
-      state.session.week,
-      state.session.day,
-      maxVal,
-      state.pullupMax?.date ?? null,
-      state.session.date,
-    ), gWeek);
-  }
+  const { schemeLine, pullupMaxLabel } = buildSessionExerciseVm({
+    item,
+    session: state.session,
+    pullupMax: state.pullupMax,
+  });
 
   return {
     stepLabel: `Осталось ${remaining} из ${state.exercises.length}`,
@@ -840,6 +830,32 @@ function buildSessionVm() {
     forwardDisabled: idx >= state.exercises.length - 1,
     flash: consumeFlash(),
   };
+}
+
+// Публичный шов view-model карточки: преобразует схему и решает,
+// показывать ли сохранённый максимум подтягиваний.
+export function buildSessionExerciseVm({ item, session, pullupMax }) {
+  const isPullup = item.exercise.startsWith("Подтягивания");
+  const gWeek = globalWeekNumber(session.program ?? 1, session.week);
+  let schemeLine = humanScheme(item.scheme, gWeek);
+  let pullupMaxLabel = null;
+
+  if (isPullup && session.program !== 4) {
+    pullupMaxLabel = pullupMaxTileLabel(pullupMax);
+  }
+  if (isPullup && session.program !== 4 && !(session.program === 3 && session.venue === "gym" && session.gymReturn)) {
+    const maxVal = pullupMax ? pullupMax.value : null;
+    schemeLine = humanScheme(pullupDayScheme(
+      session.program === 3 && session.venue === "gym" ? 2 : session.program ?? 1,
+      session.week,
+      session.day,
+      maxVal,
+      pullupMax?.date ?? null,
+      session.date,
+    ), gWeek);
+  }
+
+  return { schemeLine, pullupMaxLabel };
 }
 
 // Подпись под кружком полоски: первое слово названия, максимум 7 букв.
@@ -1044,7 +1060,7 @@ async function onStartRun() {
   const today = todayStr();
   const { number, week } = programForDate(activeProgramStart(today), today);
   const program = programByNumber(number);
-  const venue = number === 3 ? state.workoutVenue : null;
+  const venue = number === 3 ? state.workoutVenue : program.venue ?? null;
   const cardio = programVariant(program, venue).cardio ?? program.cardio;
   const run = {
     date: today, day: "RUN", week, status: "done", wellbeing: null, note: null, progressIdx: 0, program: number,
@@ -1627,4 +1643,4 @@ async function init() {
   }
 }
 
-init();
+if (typeof document !== "undefined") init();
