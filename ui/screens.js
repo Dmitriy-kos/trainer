@@ -403,8 +403,8 @@ export function renderSession(vm, onStripTap) {
   }
 
   const formatEl = $("session-format");
-  if (vm.dayBrief) {
-    formatEl.textContent = vm.dayBrief;
+  if (vm.progressionHint) {
+    formatEl.textContent = vm.progressionHint;
     formatEl.hidden = false;
   } else {
     formatEl.textContent = "";
@@ -602,6 +602,8 @@ function renderStrip(strip, onStripTap) {
   const items = strip ?? [];
   wrap.textContent = "";
   wrap.hidden = items.length === 0;
+  wrap.classList.toggle("strip-long", items.length >= 7);
+  wrap.style.setProperty("--strip-columns", String(Math.min(6, items.length || 1)));
   items.forEach((it, i) => {
     const b = document.createElement("button");
     b.type = "button";

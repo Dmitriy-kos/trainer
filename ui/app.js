@@ -2,10 +2,12 @@
 // screens.js отвечает за DOM; этот модуль решает, ЧТО показать и КОГДА писать в БД.
 
 import * as store from "../core/store.js";
-import { autoregulationHint, programForDate, measureTile, boostDay, pullupDayScheme, restRemaining, restAlertSecond, formatRest, withActualEffort, restPresetDurations, backupReminder, withConfirmedPullupMax } from "../core/logic.js";
+import { autoregulationHint, programForDate, measureTile, boostDay, restRemaining, restAlertSecond, formatRest, withActualEffort, restPresetDurations, backupReminder, withConfirmedPullupMax } from "../core/logic.js";
 import { parseSetInput, formatLastSets, formatWorkoutDate, schemeTargetReps, latestCacheVersion, humanScheme } from "../core/format.js";
-import { PROGRAMS, programByNumber, programVariant, gymReturnRemaining, planForSession, programWeekdayHint, programDayForWeekday, programDayTitle, techniqueImage, DAY_PLANS, globalWeekNumber } from "../core/plan.js";
+import { PROGRAMS, programByNumber, programVariant, gymReturnRemaining, planForSession, programWeekdayHint, programDayForWeekday, programDayTitle, techniqueImage, DAY_PLANS } from "../core/plan.js";
 import { techniqueGuide } from "../core/technique.js";
+import { buildSessionExerciseVm } from "./session-exercise.js";
+export { buildSessionExerciseVm } from "./session-exercise.js";
 import { lastSets, lastExerciseComment, withExerciseComment, sessionSummary, unfinishedSession, newerFirst, sessionExerciseSets, groupSessionSets, exerciseStatus, sessionStatuses, sessionRemaining, nextTodoIdx, ghostSessionIds } from "../core/queries.js";
 import { buildBackup, validateBackup } from "../core/backup.js";
 import { latestWeigh, weighDeltas, sortedByDateDesc, daysSince, METRICS, BODYCOMP_METRICS, metricHistory, metricDelta, deltaTone, parseWeighDraft } from "../core/weigh.js";
@@ -793,9 +795,7 @@ function buildSessionVm() {
     recordedText = "✓ " + formatLastSets(rec);
   }
 
-  const program = programByNumber(state.session.program ?? 1);
-  const variant = programVariant(program, state.session.venue);
-  const { schemeLine, pullupMaxLabel } = buildSessionExerciseVm({
+  const { schemeLine, pullupMaxLabel, progressionHint } = buildSessionExerciseVm({
     item,
     session: state.session,
     pullupMax: state.pullupMax,
@@ -809,9 +809,7 @@ function buildSessionVm() {
     techniqueGuide: techniqueGuide(item.exercise),
     exercise: item.exercise,
     schemeLine,
-    dayBrief: state.session.gymReturn
-      ? `Возврат после 2 недель: упражнения прежней программы сохранены, объём снижен по схеме, усилие не выше 7/10. ${variant.dayBriefs?.[state.session.day] ?? ""}`
-      : variant.dayBriefs?.[state.session.day] ?? null,
+    progressionHint,
     inputPlaceholder: (state.session.program ?? 1) === 3 && state.session.venue !== "gym"
       ? "напр. 0-8,8,8 — вес тела записывай как 0"
       : "напр. 50-5,5,5 или 50-5 52-5",
@@ -830,32 +828,6 @@ function buildSessionVm() {
     forwardDisabled: idx >= state.exercises.length - 1,
     flash: consumeFlash(),
   };
-}
-
-// Публичный шов view-model карточки: преобразует схему и решает,
-// показывать ли сохранённый максимум подтягиваний.
-export function buildSessionExerciseVm({ item, session, pullupMax }) {
-  const isPullup = item.exercise.startsWith("Подтягивания");
-  const gWeek = globalWeekNumber(session.program ?? 1, session.week);
-  let schemeLine = humanScheme(item.scheme, gWeek);
-  let pullupMaxLabel = null;
-
-  if (isPullup && session.program !== 4) {
-    pullupMaxLabel = pullupMaxTileLabel(pullupMax);
-  }
-  if (isPullup && session.program !== 4 && !(session.program === 3 && session.venue === "gym" && session.gymReturn)) {
-    const maxVal = pullupMax ? pullupMax.value : null;
-    schemeLine = humanScheme(pullupDayScheme(
-      session.program === 3 && session.venue === "gym" ? 2 : session.program ?? 1,
-      session.week,
-      session.day,
-      maxVal,
-      pullupMax?.date ?? null,
-      session.date,
-    ), gWeek);
-  }
-
-  return { schemeLine, pullupMaxLabel };
 }
 
 // Подпись под кружком полоски: первое слово названия, максимум 7 букв.
@@ -1385,7 +1357,7 @@ function renderDemoSession() {
     techniqueImg: techniqueImage(item.exercise),
     techniqueGuide: techniqueGuide(item.exercise),
     schemeLine: humanScheme(item.scheme, 2),
-    dayBrief: null,
+    progressionHint: null,
     inputPlaceholder: "напр. 50-5,5,5 или 50-5 52-5",
     note: item.note,
     lastSetsText: formatLastSets(demoLast),
